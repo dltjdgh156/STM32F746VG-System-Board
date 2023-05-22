@@ -1,0 +1,3666 @@
+//	----------------------------------------------------------------------------------------------------
+//	COMPANY	NAME	:
+//	PROJECT	NAME	:
+//	FILE	NAME	:	LCD.c
+//	MAKE	BY		:
+//	DESCRIPTION		:	tft lcd module control functions
+//	CREATED DATE	:	0000.00.00
+//	----------------------------------------------------------------------------------------------------
+
+
+// Includes
+#include "stm32f7xx.h"
+#include "main.h"
+#include "lwip.h"
+#include "lwip/netif.h"
+
+// Defines
+// SELECT CH
+#define PM0_5_SEL				(2)
+#define PM1_0_SEL				(3)
+#define PM2_5_SEL				(4)
+#define PM5_0_SEL				(5)
+#define PM10_0_SEL				(6)
+
+// INPUT PORT STATE
+#define PUSH_RESET				(0)
+#define PUSH_SET				(1)
+
+// BAR COLOR RGB565
+#define C_RED					(0xF800)
+#define C_ORANGE				(0xFDE0)
+#define C_YELLOW				(0xFFE0)
+#define C_GREENYELLOW			(0x8E69)
+#define C_GREEN					(0x0569)
+#define C_SKY					(0x365F)
+#define C_BLUE					(0x0377)
+
+#define RED_CUT					(7000)
+#define ORANGE_CUT				(6000)
+#define YELLOW_CUT				(5000)
+#define GREENYELLOW_CUT			(4000)
+#define GREEN_CUT				(3000)
+#define SKY_CUT					(2000)
+#define BLUE_CUT				(1000)
+
+// 배경 및 문자 출력 선택
+#define MAIN_STATE			(1)
+#define SETTING_STATE		(2)
+#define DETAILS_STATE		(3)
+
+// Particle Data Max
+#define MAX_CNT			(9999)
+
+// Details Changed Page Number
+#define	PAGE_1_OF_2	(((g_deDetSelStt >= 1) && (g_deDetSelStt <= 6)) && ((g_deDetSelStt_k < 1) || (g_deDetSelStt_k > 6)))
+#define	PAGE_2_OF_2	((((g_deDetSelStt >= 7) && (g_deDetSelStt <= 12)) || (g_deDetSelStt == 0)) && ((g_deDetSelStt_k < 7) && (g_deDetSelStt_k > 0)))
+#define	PAGE_1_OF_3	(((g_deDetSelStt >= 1) && (g_deDetSelStt <= 6)) && ((g_deDetSelStt_k < 1) || (g_deDetSelStt_k > 6)))
+#define	PAGE_2_OF_3	(((g_deDetSelStt >= 7) && (g_deDetSelStt <= 12)) && ((g_deDetSelStt_k < 7) || (g_deDetSelStt_k > 12)))
+#define	PAGE_3_OF_3	((((g_deDetSelStt >= 13) && (g_deDetSelStt <= 18)) || (g_deDetSelStt == 0)) && ((g_deDetSelStt_k < 13) && (g_deDetSelStt_k > 0)))
+
+// Variables
+// 상단 박스 : X축 +좌표
+const uint16_t u2f_1st_blok = 0;
+const uint16_t u2f_2nd_blok = 80;
+const uint16_t u2f_3th_blok = 160;
+const uint16_t u2f_4th_blok = 240;
+
+// WHILE BLOCK 좌표
+const uint16_t u2f_W_sc = 0;
+const uint16_t u2f_W_sp = 0;
+const uint16_t u2f_W_ec = 79;
+const uint16_t u2f_W_ep = 43;
+
+// BLACK BLOCK 좌표 (Horizontal)
+const uint16_t u2f_B_h_sc = 1;
+const uint16_t u2f_B_h_sp = 39;
+const uint16_t u2f_B_h_ec = 75;
+const uint16_t u2f_B_h_ep = 39;
+
+// BLACK BLOCK 좌표 (Vertical)
+const uint16_t u2f_B_v_sc = 75;
+const uint16_t u2f_B_v_sp = 1;
+const uint16_t u2f_B_v_ec = 75;
+const uint16_t u2f_B_v_ep = 39;
+
+// BAR BLOCK1 좌표(C_RED)
+const uint16_t u2f_bar_1_sc = 283;
+const uint16_t u2f_bar_1_sp = 76;
+const uint16_t u2f_bar_1_ec = 302;
+const uint16_t u2f_bar_1_ep = 95;
+
+// BAR BLOCK1 Marker 좌표
+const uint16_t u2f_bar_Mark_1_sc = 271;
+const uint16_t u2f_bar_Mark_1_sp = 75;
+
+// BAR BLOCK2 좌표(C_ORANGE)
+const uint16_t u2f_bar_2_sc = 283;
+const uint16_t u2f_bar_2_sp = 96;
+const uint16_t u2f_bar_2_ec = 302;
+const uint16_t u2f_bar_2_ep = 115;
+
+// BAR BLOCK2 Marker 좌표
+const uint16_t u2f_bar_Mark_2_sc = 271;
+const uint16_t u2f_bar_Mark_2_sp = 95;
+
+// BAR BLOCK3 좌표(C_YELLOW)
+const uint16_t u2f_bar_3_sc = 283;
+const uint16_t u2f_bar_3_sp = 116;
+const uint16_t u2f_bar_3_ec = 302;
+const uint16_t u2f_bar_3_ep = 135;
+
+// BAR BLOCK3 Marker 좌표
+const uint16_t u2f_bar_Mark_3_sc = 271;
+const uint16_t u2f_bar_Mark_3_sp = 115;
+
+// BAR BLOCK4 좌표(C_GREENYELLOW)
+const uint16_t u2f_bar_4_sc = 283;
+const uint16_t u2f_bar_4_sp = 136;
+const uint16_t u2f_bar_4_ec = 302;
+const uint16_t u2f_bar_4_ep = 155;
+
+// BAR BLOCK4 Marker 좌표
+const uint16_t u2f_bar_Mark_4_sc = 271;
+const uint16_t u2f_bar_Mark_4_sp = 135;
+
+// BAR BLOCK5 좌표(C_GREEN)
+const uint16_t u2f_bar_5_sc = 283;
+const uint16_t u2f_bar_5_sp = 156;
+const uint16_t u2f_bar_5_ec = 302;
+const uint16_t u2f_bar_5_ep = 175;
+
+// BAR BLOCK5 Marker 좌표
+const uint16_t u2f_bar_Mark_5_sc = 271;
+const uint16_t u2f_bar_Mark_5_sp = 155;
+
+// BAR BLOCK6 좌표(C_SKY)
+const uint16_t u2f_bar_6_sc = 283;
+const uint16_t u2f_bar_6_sp = 176;
+const uint16_t u2f_bar_6_ec = 302;
+const uint16_t u2f_bar_6_ep = 195;
+
+// BAR BLOCK6 Marker 좌표
+const uint16_t u2f_bar_Mark_6_sc = 271;
+const uint16_t u2f_bar_Mark_6_sp = 175;
+
+// BAR BLOCK7 좌표(C_BLUE)
+const uint16_t u2f_bar_7_sc = 283;
+const uint16_t u2f_bar_7_sp = 196;
+const uint16_t u2f_bar_7_ec = 302;
+const uint16_t u2f_bar_7_ep = 215;
+
+// BAR BLOCK7 Marker 좌표
+const uint16_t u2f_bar_Mark_7_sc = 271;
+const uint16_t u2f_bar_Mark_7_sp = 195;
+
+// 상단 "particle 데이터" 좌표
+const uint16_t l_t_par_sel_X = 16;
+const uint16_t l_t_par_sel_Y = 18;
+
+// 중앙 "Alarm" 글자 좌표
+const uint16_t l_alarm_X = 61;
+const uint16_t l_alarm_Y = 183;
+
+// 중앙 "^" 좌표
+const uint16_t l_c_pm_sel_X = 31;
+const uint16_t l_c_pm_sel_Y = 43;
+
+//// 중앙 "PM" 좌표
+//const uint16_t l_c_pm_X = 18;
+//const uint16_t l_c_pm_Y = 70;
+//
+//// 중앙 "0.0" 좌표
+//const uint16_t l_c_num_X = 18+(30*2)+(30>>1);
+//const uint16_t l_c_num_Y = 70;
+
+// 중앙 "0.0" 좌표
+const uint16_t l_c_num_X = 18;
+const uint16_t l_c_num_Y = 70;
+
+// 중앙 "PM" 좌표
+const uint16_t l_c_pm_X = 18+(30*3)+(30>>1);
+const uint16_t l_c_pm_Y = 70;
+
+// 중앙 "particle 데이터" 좌표
+const uint16_t l_c_par_X = 18;
+const uint16_t l_c_par_Y = 130;
+
+// 하단 "Alarm 카운터 값" 좌표
+const uint16_t l_b_alarm_X = 160;
+const uint16_t l_b_alarm_Y = 183;
+
+
+// Setting text 좌표
+// "PM" 좌표
+// "0.0" 좌표
+// "Alarm 값" 좌표
+const uint16_t l_s_pm_X = 53;
+const uint16_t l_s_num_Y = 83;
+const uint16_t l_s_alarm_X = 137;
+
+
+//FONT SIZE
+const uint32_t u4f_f24_size = 24;
+const uint32_t u4f_f36_size = 36;
+const uint32_t u4f_f60_size = 60;
+
+
+
+// 기본적인 배경 화면 선택 (MAIN / SETTING 화면)
+uint8_t u1f_background_sel =  MAIN_STATE;
+
+// 메인 상단 색상 변경 배경
+uint8_t u1f_color_background_sel = MAIN_STATE;
+
+// 버튼 동작 선택 (MAIN / SETTING)
+uint8_t u1f_button_sel = MAIN_STATE;
+
+// Text 출력 선택 (MAIN / SETTING)
+uint8_t u1f_text_sel = MAIN_STATE;
+
+// for Point of Cursor
+const uint16_t g_arMainCursorX[4+1] = {0, 164, 176, 188, 200};
+const uint16_t g_arSetCursorY[10+1] = {194, 50, 86, 122, 158, 194, 50, 86, 122, 158, 194};
+const uint16_t g_arDetCursorX[1+1] = {0, 12};
+const uint16_t g_arDetCursorY[18+1] = {204, 60, 84, 108, 132, 156, 180, 60, 84, 108, 132, 156, 180, 60, 84, 108, 132, 156, 180};
+const uint16_t g_arCharCursorX[25+1] = {0, 12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132, 144, 156, 168, 180, 192, 204, 216, 228, 240, 252, 264, 276, 288, 300};
+const uint16_t g_arCharCursorY[6+1] = {0, 80, 104, 128, 152, 176, 200};
+
+uint16_t g_deChCursor = 0x0000;
+const uint16_t g_arCharX[25+1] = {0, 12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132, 144, 156, 168, 180, 192, 204, 216, 228, 240, 252, 264, 276, 288, 300};
+const uint16_t g_arCharY[18+1] = {204, 60, 84, 108, 132, 156, 180, 60, 84, 108, 132, 156, 180, 60, 84, 108, 132, 156, 180};	// 1) ~ 18)
+const uint16_t g_arCharSizeX[26] = {0, 12, 24, 36, 48, 60, 72, 84, 96, 108, 120, 132, 144, 156, 168, 180, 192, 204, 216, 228, 240, 252, 264, 276, 288, 300};
+const uint16_t g_arCharSizeY[4] = {0, 24, 48, 72};
+
+const uint16_t g_arChAlarmX[5] = {0, 164, 176, 188, 200};
+const uint16_t g_arChAlarmY[7] = {0, 80, 104, 128, 152, 176, 200};		// 1, 2, 3, 4, 5, 6
+const uint16_t g_arChDateTimeX[7] = {0, 56, 68, 92, 104, 128, 140};
+const uint16_t g_arChDateTimeY[4] = {0, 104, 0, 152};						// 1, 3
+const uint16_t g_arChNetworkX[13] = {0, 128+12*0, 128+12*1, 128+12*2, 128+12*4, 128+12*5, 128+12*6, 128+12*8, 128+12*9, 128+12*10, 128+12*12, 128+12*13, 128+12*14};
+const uint16_t g_arChNetMacX[13] = {0, 56+12*0, 56+12*1, 56+12*3, 56+12*4, 56+12*6, 56+12*7, 56+12*9, 56+12*10, 56+12*12, 56+12*13, 56+12*15, 56+12*16};
+const uint16_t g_arChNetworkY[5] = {0, 80, 104, 128, 176};					// 1, 2, 3, 4
+
+const uint16_t g_arSetAlMax[16+1] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9000, 9900, 9990, 9999};
+const uint16_t g_arSetAlMin[16+1] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 999, 99, 9, 0};
+const uint16_t g_arSetAlSum[16+1] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1000, 100, 10, 1};
+
+uint16_t g_arSetDateMax[11+1] = {0, 0, 0, 0, 90, 99, 0, 3, 12, 0, 22, 31};
+const uint16_t g_arSetDateMin[11+1] = {0, 0, 0, 0, 9, 0, 0, 10, 1, 0, 10, 1};
+const uint16_t g_arSetDateSum[11+1] = {0, 0, 0, 0, 10, 1, 0, 10, 1, 0, 10, 1};
+const uint16_t g_arSetTimeMax[11+1] = {0, 0, 0, 0, 14, 23, 0, 50, 59, 0, 50, 59};
+const uint16_t g_arSetTimeMin[11+1] = {0, 0, 0, 0, 9, 0, 0, 9, 0, 0, 9, 0};
+const uint16_t g_arSetTimeSum[11+1] = {0, 0, 0, 0, 10, 1, 0, 10, 1, 0, 10, 1};
+
+const uint8_t g_arSetAddrMax[23+1] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 156, 246, 255, 0, 156, 246, 255, 0, 156, 246, 255, 0, 156, 246, 255};
+const uint8_t g_arSetAddrMin[23+1] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 99, 9, 0, 0, 99, 9, 0, 0, 99, 9, 0, 0, 99, 9, 0};
+const uint8_t g_arSetAddrSum[23+1] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 100, 10, 1, 0, 100, 10, 1, 0, 100, 10, 1, 0, 100, 10, 1};
+const uint16_t g_arSetPortMax[13+1] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 55536, 64536, 65436, 65526, 65525};
+const uint16_t g_arSetPortMin[13+1] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 9999, 999, 99, 9, 0};
+const uint16_t g_arSetPortSum[13+1] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 10000, 1000, 100, 10, 1};
+const uint8_t g_arSetMacMax[25+1] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 240, 255, 0, 240, 255, 0, 240, 255, 0, 240, 255, 0, 240, 255, 0, 240, 255};
+const uint8_t g_arSetMacMin[25+1] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 15, 0, 0, 15, 0, 0, 15, 0, 0, 15, 0, 0, 15, 0, 0, 15, 0};
+const uint8_t g_arSetMacSum[25+1] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 16, 1, 0, 16, 1, 0, 16, 1, 0, 16, 1, 0, 16, 1, 0, 16, 1};
+
+
+// for Selecting Background State
+uint8_t g_deBkgdStt = 1;			// 0-Nothing, 1-Main, 2-Setting, 3- Details(Current State)
+uint8_t g_deMainSelStt = 2;		// 1-PM0.3, 2-PM0.5, 3-PM1.0, 4-PM2.5, 5-PM5.0, 6-PM10
+uint8_t g_deSetSelStt = 1;		// 1-Alarm, 2-Date/time, 3-Network, 4-Sound, 5-Status
+uint8_t g_deDetSelStt = 1;		// 1.1-PM0.3, 2-PM0.5, 3-PM1.0, 4-PM2.5, 5-PM5.0, 6-PM10, 2.1~3-Date, 4~6-Time, 3.1-IP, 2-Subnet, 3-Gateway, 4-MAC, 4.1-Off/Beep/Melody, 2-Volume, 5.1-Moving Average, 2-Unit, 3-Wifi
+uint8_t g_deChSelStt = 0;		// Character(ASCII Code, 1 is Most Significant)
+
+uint8_t g_deBkgdStt_k = 10;		// 0-Nothing, 1-Main, 2-Setting, 3- Setting Details(Previous State)
+uint8_t g_deMainSelStt_k = 10;	// 1-PM0.3, 2-PM0.5, 3-PM1.0, 4-PM2.5, 5-PM5.0, 6-PM10
+uint8_t g_deSetSelStt_k = 10;		// 1-Alarm, 2-Date/time, 3-Network, 4-Sound, 5-Status
+uint8_t g_deDetSelStt_k = 10;		// 1.1-PM0.3, 2-PM0.5, 3-PM1.0, 4-PM2.5, 5-PM5.0, 6-PM10, 2.1~3-Date, 4~6-Time, 3.1-IP, 2-Subnet, 3-Gateway, 4-MAC, 4.1-Off/Beep/Melody, 2-Volume, 5.1-Moving Average, 2-Unit, 3-Wifi
+uint8_t g_deChSelStt_k = 10;		// Character(ASCII Code, 1 is Most Significant)
+
+// for Main Page
+uint16_t g_deMainAl003Flg = 0;
+uint16_t g_deMainAl005Flg = 0;
+uint16_t g_deMainAl010Flg = 0;
+uint16_t g_deMainAl025Flg = 0;
+uint16_t g_deMainAl050Flg = 0;
+uint16_t g_deMainAl100Flg = 0;
+
+uint16_t g_deMainAl003Flg_k = 0;
+uint16_t g_deMainAl005Flg_k = 0;
+uint16_t g_deMainAl010Flg_k = 0;
+uint16_t g_deMainAl025Flg_k = 0;
+uint16_t g_deMainAl050Flg_k = 0;
+uint16_t g_deMainAl100Flg_k = 0;
+
+uint16_t g_deMainAl003Num = 0;
+uint16_t g_deMainAl005Num = 0;
+uint16_t g_deMainAl010Num = 0;
+uint16_t g_deMainAl025Num = 0;
+uint16_t g_deMainAl050Num = 0;
+uint16_t g_deMainAl100Num = 0;
+
+uint8_t g_deMainAccYearNum = 0;
+uint8_t g_deMainAccMonthNum = 0;
+uint8_t g_deMainAccDayNum = 0;
+uint8_t g_deMainAccHourNum = 0;
+uint8_t g_deMainAccMinNum = 0;
+uint8_t g_deMainAccSecNum = 0;
+
+uint8_t g_deMainLogCntNum = 0;
+uint8_t g_deMainModeIoNum = 0;
+uint8_t g_deMainModeNetNum = 0;
+uint8_t g_deMainModeSmaNum = 0;
+
+uint8_t g_arMainLogDataNum[64][8] = {0};
+
+// for Alarm Reference Details Page
+uint16_t g_deSetAl003Num = 0;
+uint16_t g_deSetAl005Num = 0;
+uint16_t g_deSetAl010Num = 0;
+uint16_t g_deSetAl025Num = 0;
+uint16_t g_deSetAl050Num = 0;
+uint16_t g_deSetAl100Num = 0;
+
+uint16_t g_deSetAl003Num_k = 0;
+uint16_t g_deSetAl005Num_k = 0;
+uint16_t g_deSetAl010Num_k = 0;
+uint16_t g_deSetAl025Num_k = 0;
+uint16_t g_deSetAl050Num_k = 0;
+uint16_t g_deSetAl100Num_k = 0;
+
+// for Date, Time Details Page
+uint8_t g_arSetDateNum[3] = {0, 1, 1};
+uint8_t g_arSetTimeNum[3] = {0, 0, 0};
+uint16_t g_arSetUpDateNum = 0;
+uint16_t g_arSetUpTimeNum = 0;
+
+uint8_t g_arSetDateNum_k[3] = {0, };
+uint8_t g_arSetTimeNum_k[3] = {0, };
+uint16_t g_arSetUpDateNum_k = 0;
+uint16_t g_arSetUpTimeNum_k = 0;
+
+// for Mode Details Page
+uint8_t g_deSetModeCtrlNum = 1;		// 0 - Off, 1 - On
+uint8_t g_deSetModeNetNum = 1;		// 0 - WIFI, 1 - Server, 2 - Client, 3 - Dual
+uint8_t g_deSetModeSmaNum = 1;	// 1~64
+
+uint8_t g_deSetModeCtrlNum_k = 1;
+uint8_t g_deSetModeNetNum_k = 1;
+uint8_t g_deSetModeSmaNum_k = 1;
+
+// for Network Details Page
+uint8_t g_arSetModIpNum[4] = {192, 168, 0, 1};
+uint8_t g_arSetModSubNum[4] = {255, 255, 255, 0};
+uint8_t g_arSetModGwNum[4] = {192, 168, 0, 1};
+uint16_t g_deSetModPortNum = 7;
+uint8_t g_arSetModMacNum[6] = {1, 2, 3, 4, 5, 6};
+uint8_t g_arSetDestIpNum[4] = {192, 168, 0, 11};
+uint16_t g_deSetDestPortNum = 7;
+
+uint8_t g_arSetModIpNum_k[4] = {0, };
+uint8_t g_arSetModSubNum_k[4] = {0, };
+uint8_t g_arSetModGwNum_k[4] = {0, };
+uint16_t g_deSetModPortNum_k = 0;
+uint8_t g_arSetModMacNum_k[6] = {0, };
+uint8_t g_arSetDestIpNum_k[4] = {0, };
+uint16_t g_deSetDestPortNum_k = 0;
+
+// for Sound Details Page
+uint8_t g_deSetAlarmTypeNum = 1;	// 0 - Off, 1 - Beep, 2 - Siren
+uint8_t g_deSetVolumeNum = 1;		// 0 - VLow, 1 - Low, 2 - Mid, 3 - High
+
+uint8_t g_deSetSoundTypeNum_k = 1;
+uint8_t g_deSetVolumeNum_k = 1;
+
+// for Details Page(ASCII Code)
+int8_t g_arSetAl003Asc[4] = {' ', ' ', ' ', '0'};
+int8_t g_arSetAl005Asc[4] = {' ', ' ', ' ', '0'};
+int8_t g_arSetAl010Asc[4] = {' ', ' ', ' ', '0'};
+int8_t g_arSetAl025Asc[4] = {' ', ' ', ' ', '0'};
+int8_t g_arSetAl050Asc[4] = {' ', ' ', ' ', '0'};
+int8_t g_arSetAl100Asc[4] = {' ', ' ', ' ', '0'};
+
+int8_t g_arSetDateAsc[8] = {'0', '0', '-', ' ', '1', '-', ' ', '1'};
+int8_t g_arSetTimeAsc[8] = {' ', '0', ':', ' ', '0', ':', ' ', '0'};
+int8_t g_arSetUpDateAsc[4] = {' ', ' ', ' ', '0'};
+int8_t g_arSetUpTimeAsc[4] = {' ', ' ', ' ', '0'};
+
+int8_t g_arSetControlAsc[3] = {'O', 'n', ' '};
+int8_t g_arSetNetworkAsc[6] = {'S', 'e', 'r', 'v', 'e', 'r'};
+int8_t g_arSetSmaSampleAsc[2] = {'0', '1'};
+
+int8_t g_arSetModIpAsc[15] = {'1', '9', '2', '.', '1', '6', '8', '.', ' ', ' ', '0', '.', ' ', ' ', '1'};
+int8_t g_arSetModSubAsc[15] = {'2', '5', '5', '.', '2', '5', '5', '.', '2', '5', '5', '.', ' ', ' ', '0'};
+int8_t g_arSetModGwAsc[15] = {'1', '9', '2', '.', '1', '6', '8', '.', ' ', ' ', '0', '.', ' ', ' ', '1'};
+int8_t g_arSetModPortAsc[5] = {'0','0','0','0','0'};
+int8_t g_arSetModMacAsc[17] = {'0', '1', ':', '0', '2', ':', '0', '3', ':', '0', '4', ':', '0', '5', ':', '0', '6'};
+int8_t g_arSetDestIpAsc[15] = {'1', '9', '2', '.', '1', '6', '8', '.', ' ', ' ', '0', '.', ' ', '1', '1'};
+int8_t g_arSetDestPortAsc[5] = {'0','0','0','0','0'};
+
+int8_t g_arSetAlarmTypeAsc[6] = {'B', 'e', 'e', 'p', ' ', ' '};
+int8_t g_arSetVolumeAsc[4] = {'L', 'o', 'w', ' '};
+
+// TOP text 배경 색상(COLOR : RGB565)
+uint16_t u2f_b_text_color = 0;
+
+// PM particle Count State(상태값 컬러로 사용)
+uint16_t g_dePm005Stt = C_BLUE;
+uint16_t g_dePm010Stt = C_BLUE;
+uint16_t g_dePm025Stt = C_BLUE;
+uint16_t g_dePm050Stt = C_BLUE;
+uint16_t g_dePm100Stt = C_BLUE;
+
+// PM particle Count Old State(상태값 컬러로 사용)
+uint16_t g_dePm005Stt_k = 0;
+uint16_t g_dePm010Stt_k = 0;
+uint16_t g_dePm025Stt_k = 0;
+uint16_t g_dePm050Stt_k = 0;
+uint16_t g_dePm100Stt_k = 0;
+
+
+// Particle 데이터 Display 출력용
+// STRING COUNT
+int8_t u1f_pm05_cnt_val[4] = {0,0,0,0};
+int8_t u1f_pm10_cnt_val[5] = {0,0,0,0};
+int8_t u1f_pm25_cnt_val[5] = {0,0,0,0};
+int8_t u1f_pm50_cnt_val[5] = {0,0,0,0};
+int8_t u1f_pm100_cnt_val[5] = {0,0,0,0};
+
+// Particle 데이터
+uint32_t u4f_pm05_cnt = 0;
+uint32_t u4f_pm10_cnt = 0;//1234;
+uint32_t u4f_pm25_cnt = 0;//2357;
+uint32_t u4f_pm50_cnt = 0;//3245;
+uint32_t u4f_pm100_cnt = 0;//4975;
+
+// Alarm 데이터 Display 출력용 (MAIN)
+// ALARM STRING COUNT
+int8_t u1f_alarm_cnt_val[5] = {0,0,0,0};
+
+// Alarm 데이터 Display 출력용 (SETTING)
+int8_t u1f_alarm_pm05_cnt_val[5] = {0,0,0,0};
+int8_t u1f_alarm_pm10_cnt_val[5] = {0,0,0,0};
+int8_t u1f_alarm_pm25_cnt_val[5] = {0,0,0,0};
+int8_t u1f_alarm_pm50_cnt_val[5] = {0,0,0,0};
+int8_t u1f_alarm_pm100_cnt_val[5] = {0,0,0,0};
+
+// Alarm 데이터 저장
+// ALARM COUNT
+uint16_t u2f_pm05_A_cnt = 1000;
+uint16_t u2f_pm10_A_cnt = 2000;
+uint16_t u2f_pm25_A_cnt = 3000;
+uint16_t u2f_pm50_A_cnt = 5000;
+uint16_t u2f_pm100_A_cnt = 7000;
+
+// 버튼 적용 카운터 변수
+// BUTTON
+uint16_t u2f_button_down_cnt = 0;
+uint16_t u2f_button_up_cnt = 0;
+uint16_t u2f_button_set_cnt = 0;
+uint16_t u2f_button_esc_cnt = 0;
+
+uint8_t g_deSw1ShortFlg = 0, g_deSw2ShortFlg = 0, g_deSw3ShortFlg = 0, g_deSw4ShortFlg = 0, g_deSw3LongFlg = 0, g_deSw4LongFlg = 0;
+uint8_t ExternalInput1Inv_k = 1;
+
+// Structures
+
+
+
+// Functions
+void LCD_INIT(void);
+void LCD_UPDATE(void);
+
+void LCD_MainDisplay(void);
+void LCD_SettingDisplay(void);
+void LCD_DetailsDisplay(void);
+void LCD_DetailsAlarmDisplay(void);
+void LCD_DetailsDatetimeDisplay(void);
+void LCD_DetailsModeDisplay(void);
+void LCD_DetailsNetworkDisplay(void);
+void LCD_DetailsSoundDisplay(void);
+
+void LCD_MainStatus(void);
+void LCD_SettingStatus(void);
+void LCD_DetailsStatus(void);
+void LCD_DetailsAlarmStatus(void);
+void LCD_DetailsDatetimeStatus(void);
+void LCD_DetailsModeStatus(void);
+void LCD_DetailsNetworkStatus(void);
+void LCD_DetailsSoundStatus(void);
+
+//-----------------------------------------------------------------------------
+// Particle 데이터
+//-----------------------------------------------------------------------------
+//void FUN_particle_data(void);
+
+//-----------------------------------------------------------------------------
+// 배경 화면
+//-----------------------------------------------------------------------------
+// MAIN
+//void FUN_background_Routine(void);
+void FUN_backgrounMAIN_STATE(void);
+void FUN_backgrounMAIN_STATE_top_color(uint32_t u4t_pm_cnt, uint16_t u2t_sel_block, uint8_t u1t_sel_pm);
+void FUN_backgrounMAIN_STATE_top_text_line(uint8_t u1t_sel_pm);
+void FUN_backgrounMAIN_STATE_right_marker(char a_Color);
+//-----------------------------------------------------------------------------
+// 텍스트 화면
+//-----------------------------------------------------------------------------
+//void FUN_text_Routine(void);
+//void FUN_text_main(void);
+//void FUN_text_setting(void);
+
+//-----------------------------------------------------------------------------
+// 버튼 동작
+//-----------------------------------------------------------------------------
+void LCD_INIT(void)
+{
+	Ili9341_Reset();
+	Ili9341_Preset();
+	Ili9341_Rotate(270);
+}
+
+void LCD_UPDATE(void)
+{
+	switch(g_deBkgdStt)
+	{
+		case MAIN_STATE :								// If Background is Main Page
+			LCD_MainDisplay();
+			LCD_MainStatus();
+			break;
+		case SETTING_STATE :							// If Background is Setting Page
+			LCD_SettingDisplay();
+			LCD_SettingStatus();
+			break;
+		case DETAILS_STATE :							// If Background is Details Page
+			switch(g_deSetSelStt)
+			{
+				case 1 :
+					LCD_DetailsAlarmDisplay();
+					LCD_DetailsAlarmStatus();
+					break;
+				case 2 :
+					LCD_DetailsDatetimeDisplay();
+					LCD_DetailsDatetimeStatus();
+					break;
+				case 3 :
+					LCD_DetailsModeDisplay();
+					LCD_DetailsModeStatus();
+					break;
+				case 4 :
+					LCD_DetailsNetworkDisplay();
+					LCD_DetailsNetworkStatus();
+					break;
+				case 5 :
+					LCD_DetailsSoundDisplay();
+					LCD_DetailsSoundStatus();
+					break;
+				default :
+					break;
+			}
+			break;
+		default :
+			break;
+	}
+}
+
+void BACKGROUND_BACKGROUND_BACKGROUND_BACKGROUND_BACKGROUND(void){
+}
+
+void LCD_MainDisplay(void)
+{
+	// Background Main Page
+	if(g_deBkgdStt == g_deBkgdStt_k)	// After Second Time
+	{
+		if(g_deMainSelStt != PM10_0_SEL)  // 선택 PM (PM0.5 / PM1.0 / PM2.5 / PM5.0)
+		{
+			// 나중에 색상 전환에 사용
+			g_dePm100Stt_k = WHITE;
+
+			// 상단 색상 출력
+			FUN_backgrounMAIN_STATE_top_color(PM_UART.Cnt.Pm005,	u2f_1st_blok, PM0_5_SEL);		// Update Top Color Block(PM0.5)
+			FUN_backgrounMAIN_STATE_top_color(PM_UART.Cnt.Pm010,	u2f_2nd_blok, PM1_0_SEL);		// Update Top Color Block(PM1.0)
+			FUN_backgrounMAIN_STATE_top_color(PM_UART.Cnt.Pm025,	u2f_3th_blok, PM2_5_SEL);		// Update Top Color Block(PM2.5)
+			FUN_backgrounMAIN_STATE_top_color(PM_UART.Cnt.Pm050,	u2f_4th_blok, PM5_0_SEL);		// Update Top Color Block(PM5.0)
+		}
+		else // 선택 PM : (PM 10)
+		{
+			// 나중에 색상 전환에 사용
+			g_dePm005Stt_k = WHITE;
+			g_dePm010Stt_k = WHITE;
+			g_dePm025Stt_k = WHITE;
+			g_dePm050Stt_k = WHITE;
+
+			// 상단 색상 출력
+			FUN_backgrounMAIN_STATE_top_color(PM_UART.Cnt.Pm100,	u2f_1st_blok, PM10_0_SEL);		// Update Top Color Block(PM10.)
+		}
+	}
+	else								// First Time Only
+	{
+		Ili9341_Background(WHITE);
+
+		if((g_deMainModeIoNum == 0) || ((g_deMainModeIoNum == 1) && (Din.ExternalInput1Inv == 0)))
+		{
+			if(g_deMainAl005Flg)
+			{
+				Ili9341_FilledRect(RED, 0, 73, 265, 115);
+				g_deMainAl005Flg_k = g_deMainAl005Flg;
+			}
+		}
+
+		g_dePm005Stt_k = 0xFF;
+		g_dePm010Stt_k = 0xFF;
+		g_dePm025Stt_k = 0xFF;
+		g_dePm050Stt_k = 0xFF;
+
+		FUN_backgrounMAIN_STATE();
+
+		g_deBkgdStt_k = g_deBkgdStt;
+	}
+
+	// Texts Main Page
+	// Update Top Text & Center Text
+
+	// 상단 파티클 데이터 출력
+	if(g_deMainSelStt != PM10_0_SEL)
+	{
+		Ili9341_Ascii(u1f_pm05_cnt_val, 	u4f_f24_size,	BLACK,	g_dePm005Stt,	l_t_par_sel_X + u2f_1st_blok,	l_t_par_sel_Y,	(u4f_f24_size >> 1) * 4,	u4f_f24_size);
+		Ili9341_Ascii(u1f_pm10_cnt_val, 	u4f_f24_size,	BLACK,	g_dePm010Stt,	l_t_par_sel_X + u2f_2nd_blok,	l_t_par_sel_Y,	(u4f_f24_size >> 1) * 4,	u4f_f24_size);
+		Ili9341_Ascii(u1f_pm25_cnt_val, 	u4f_f24_size,	BLACK,	g_dePm025Stt,	l_t_par_sel_X + u2f_3th_blok,	l_t_par_sel_Y,	(u4f_f24_size >> 1) * 4,	u4f_f24_size);
+		Ili9341_Ascii(u1f_pm50_cnt_val, 	u4f_f24_size,	BLACK,	g_dePm050Stt,	l_t_par_sel_X + u2f_4th_blok,	l_t_par_sel_Y,	(u4f_f24_size >> 1) * 4,	u4f_f24_size);
+	}
+	else
+	{
+		Ili9341_Ascii(u1f_pm100_cnt_val, 	u4f_f24_size,	BLACK,	g_dePm100Stt,	l_t_par_sel_X + u2f_1st_blok,	l_t_par_sel_Y,	(u4f_f24_size >> 1) * 4,	u4f_f24_size);
+	}
+
+	// Alarm Check
+	(PM_UART.Cnt.Pm005 > g_deMainAl005Num)? (g_deMainAl005Flg = 1): (g_deMainAl005Flg = 0);
+	(PM_UART.Cnt.Pm010 > g_deMainAl010Num)? (g_deMainAl010Flg = 1): (g_deMainAl010Flg = 0);
+	(PM_UART.Cnt.Pm025 > g_deMainAl025Num)? (g_deMainAl025Flg = 1): (g_deMainAl025Flg = 0);
+	(PM_UART.Cnt.Pm050 > g_deMainAl050Num)? (g_deMainAl050Flg = 1): (g_deMainAl050Flg = 0);
+	(PM_UART.Cnt.Pm100 > g_deMainAl100Num)? (g_deMainAl100Flg = 1): (g_deMainAl100Flg = 0);
+
+	// 중앙 화면
+	switch(g_deMainSelStt)
+	{
+		case PM0_5_SEL :
+			if((g_deMainAl005Flg != g_deMainAl005Flg_k) || (g_deMainSelStt != g_deMainSelStt_k) || (Din.ExternalInput1Inv != ExternalInput1Inv_k))
+			{
+				if((g_deMainModeIoNum == 0) || ((g_deMainModeIoNum == 1) && (Din.ExternalInput1Inv == 0)))
+				{
+					if(g_deMainAl005Flg)
+					{
+						Ili9341_FilledRect(RED, 0, 73, 265, 115);
+						g_deMainAl005Flg_k = g_deMainAl005Flg;
+					}
+					else
+					{
+						Ili9341_FilledRect(WHITE, 0, 73, 265, 115);
+						g_deMainAl005Flg_k = g_deMainAl005Flg;
+					}
+				}
+				else
+				{
+					Ili9341_FilledRect(WHITE, 0, 73, 265, 115);
+					g_deMainAl005Flg_k = g_deMainAl005Flg;
+				}
+
+				ExternalInput1Inv_k = Din.ExternalInput1Inv;
+				g_deMainSelStt_k = g_deMainSelStt;
+			}
+			if((g_deMainModeIoNum == 0) || ((g_deMainModeIoNum == 1) && (Din.ExternalInput1Inv == 0)))
+			{
+				// CENTER
+				Ili9341_Ascii((int8_t*)"0.5",		u4f_f60_size,	BLACK,	g_deMainAl005Flg? RED: WHITE,	l_c_num_X,	l_c_num_Y,	(u4f_f60_size >> 1)*3,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)"um",		u4f_f60_size,	BLACK,	g_deMainAl005Flg? RED: WHITE,	l_c_pm_X,	l_c_pm_Y,	(u4f_f60_size >> 1)*2,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)PCnt.Pm005, 	u4f_f60_size,	BLACK,	g_deMainAl005Flg? RED: WHITE,	l_c_par_X,	l_c_par_Y,	(u4f_f60_size >> 1)*8,		u4f_f60_size);
+
+				// Fan Status & Sampling Number
+				if((PM_UART.Alarm & 1) == 0 && (PM_UART.Alarm & 2) == 0)	// Normal Speed
+				{
+					Ili9341_Ascii((int8_t*)"FAN OK", 24,	BLACK,	g_deMainAl005Flg? RED: WHITE,	190, 74, 12*6, 24);
+				}
+				else	// Abnormal
+				{
+					Ili9341_Ascii((int8_t*)"FAN NG", 24,	BLACK,	g_deMainAl005Flg? RED: WHITE,	190, 74, 12*6, 24);
+				}
+
+				Ili9341_Ascii((int8_t*)"N=", 24,	BLACK,	g_deMainAl005Flg? RED: WHITE,	202, 98, 12*6, 24);
+				Ili9341_Ascii((int8_t*)" 1", 24,	BLACK,	g_deMainAl005Flg? RED: WHITE,	226, 98, 12*6, 24);
+			}
+			else
+			{
+				Ili9341_Ascii((int8_t*)"0.5",		u4f_f60_size,	BLACK,	WHITE,	l_c_num_X,	l_c_num_Y,	(u4f_f60_size >> 1)*3,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)"um",		u4f_f60_size,	BLACK,	WHITE,	l_c_pm_X,	l_c_pm_Y,	(u4f_f60_size >> 1)*2,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)PCnt.Pm005, 	u4f_f60_size,	BLACK,	WHITE,	l_c_par_X,	l_c_par_Y,	(u4f_f60_size >> 1)*8,		u4f_f60_size);
+
+				Ili9341_Ascii((int8_t*)"      ", 24,	BLACK,	WHITE,	190, 74, 12*6, 24);
+
+				Ili9341_Ascii((int8_t*)"N=", 24,	BLACK,	WHITE,	202, 98, 12*6, 24);
+				Ili9341_Ascii((int8_t*)" 1", 24,	BLACK,	WHITE,	226, 98, 12*6, 24);
+			}
+			// RIGHT
+			FUN_backgrounMAIN_STATE_right_marker(u1f_pm05_cnt_val[0]);
+
+			// BOTTOM
+//			memcpy(u1f_alarm_cnt_val, g_arMainAl005Asc, 4);
+			break;
+		case PM1_0_SEL :
+			if((g_deMainAl010Flg != g_deMainAl010Flg_k) || (g_deMainSelStt != g_deMainSelStt_k) || (Din.ExternalInput1Inv != ExternalInput1Inv_k))
+			{
+				if((g_deMainModeIoNum == 0) || ((g_deMainModeIoNum == 1) && (Din.ExternalInput1Inv == 0)))
+				{
+					if(g_deMainAl010Flg)
+					{
+						Ili9341_FilledRect(RED, 0, 73, 265, 115);
+						g_deMainAl010Flg_k = g_deMainAl010Flg;
+					}
+					else
+					{
+						Ili9341_FilledRect(WHITE, 0, 73, 265, 115);
+						g_deMainAl010Flg_k = g_deMainAl010Flg;
+					}
+				}
+				else
+				{
+					Ili9341_FilledRect(WHITE, 0, 73, 265, 115);
+					g_deMainAl010Flg_k = g_deMainAl010Flg;
+				}
+
+				ExternalInput1Inv_k = Din.ExternalInput1Inv;
+				g_deMainSelStt_k = g_deMainSelStt;
+			}
+			if((g_deMainModeIoNum == 0) || ((g_deMainModeIoNum == 1) && (Din.ExternalInput1Inv == 0)))
+			{
+				// CENTER
+				Ili9341_Ascii((int8_t*)"1.0",		u4f_f60_size,	BLACK,	g_deMainAl010Flg? RED: WHITE,	l_c_num_X,	l_c_num_Y,	(u4f_f60_size >> 1)*3,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)"um",		u4f_f60_size,	BLACK,	g_deMainAl010Flg? RED: WHITE,	l_c_pm_X,	l_c_pm_Y,	(u4f_f60_size >> 1)*2,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)PCnt.Pm010, 	u4f_f60_size,	BLACK,	g_deMainAl010Flg? RED: WHITE,	l_c_par_X,	l_c_par_Y,	(u4f_f60_size >> 1)*8,		u4f_f60_size);
+
+				// Fan Status & Sampling Number
+				if((PM_UART.Alarm & 1) == 0 && (PM_UART.Alarm & 2) == 0)	// Normal Speed
+				{
+					Ili9341_Ascii((int8_t*)"FAN OK", 24,	BLACK,	g_deMainAl010Flg? RED: WHITE,	190, 74, 12*6, 24);
+				}
+				else	// Abnormal
+				{
+					Ili9341_Ascii((int8_t*)"FAN NG", 24,	BLACK,	g_deMainAl010Flg? RED: WHITE,	190, 74, 12*6, 24);
+				}
+
+				Ili9341_Ascii((int8_t*)"N=", 24,	BLACK,	g_deMainAl010Flg? RED: WHITE,	202, 98, 12*6, 24);
+				Ili9341_Ascii((int8_t*)" 1", 24,	BLACK,	g_deMainAl010Flg? RED: WHITE,	226, 98, 12*6, 24);
+			}
+			else
+			{
+				Ili9341_Ascii((int8_t*)"1.0",		u4f_f60_size,	BLACK,	WHITE,	l_c_num_X,	l_c_num_Y,	(u4f_f60_size >> 1)*3,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)"um",		u4f_f60_size,	BLACK,	WHITE,	l_c_pm_X,	l_c_pm_Y,	(u4f_f60_size >> 1)*2,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)PCnt.Pm010, 	u4f_f60_size,	BLACK,	WHITE,	l_c_par_X,	l_c_par_Y,	(u4f_f60_size >> 1)*8,		u4f_f60_size);
+
+				Ili9341_Ascii((int8_t*)"      ", 24,	BLACK,	WHITE,	190, 74, 12*6, 24);
+
+				Ili9341_Ascii((int8_t*)"N=", 24,	BLACK,	WHITE,	202, 98, 12*6, 24);
+				Ili9341_Ascii((int8_t*)" 1", 24,	BLACK,	WHITE,	226, 98, 12*6, 24);
+			}
+			// RIGHT
+			FUN_backgrounMAIN_STATE_right_marker(u1f_pm10_cnt_val[0]);
+
+			// BOTTOM
+//			memcpy(u1f_alarm_cnt_val, g_arMainAl010Asc, 4);
+
+			break;
+		case PM2_5_SEL :
+			if((g_deMainAl025Flg != g_deMainAl025Flg_k) || (g_deMainSelStt != g_deMainSelStt_k) || (Din.ExternalInput1Inv != ExternalInput1Inv_k))
+			{
+				if((g_deMainModeIoNum == 0) || ((g_deMainModeIoNum == 1) && (Din.ExternalInput1Inv == 0)))
+				{
+					if(g_deMainAl025Flg)
+					{
+						Ili9341_FilledRect(RED, 0, 73, 265, 115);
+						g_deMainAl025Flg_k = g_deMainAl025Flg;
+					}
+					else
+					{
+						Ili9341_FilledRect(WHITE, 0, 73, 265, 115);
+						g_deMainAl025Flg_k = g_deMainAl025Flg;
+					}
+				}
+				else
+				{
+					Ili9341_FilledRect(WHITE, 0, 73, 265, 115);
+					g_deMainAl025Flg_k = g_deMainAl025Flg;
+				}
+
+				ExternalInput1Inv_k = Din.ExternalInput1Inv;
+				g_deMainSelStt_k = g_deMainSelStt;
+			}
+			if((g_deMainModeIoNum == 0) || ((g_deMainModeIoNum == 1) && (Din.ExternalInput1Inv == 0)))
+			{
+				// CENTER
+				Ili9341_Ascii((int8_t*)"2.5",		u4f_f60_size,	BLACK,	g_deMainAl025Flg? RED: WHITE,	l_c_num_X,	l_c_num_Y,	(u4f_f60_size >> 1)*3,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)"um",		u4f_f60_size,	BLACK,	g_deMainAl025Flg? RED: WHITE,	l_c_pm_X,	l_c_pm_Y,	(u4f_f60_size >> 1)*2,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)PCnt.Pm025, 	u4f_f60_size,	BLACK,	g_deMainAl025Flg? RED: WHITE,	l_c_par_X,	l_c_par_Y,	(u4f_f60_size >> 1)*8,		u4f_f60_size);
+
+				// Fan Status & Sampling Number
+				if((PM_UART.Alarm & 1) == 0 && (PM_UART.Alarm & 2) == 0)	// Normal Speed
+				{
+					Ili9341_Ascii((int8_t*)"FAN OK", 24,	BLACK,	g_deMainAl025Flg? RED: WHITE,	190, 74, 12*6, 24);
+				}
+				else	// Abnormal
+				{
+					Ili9341_Ascii((int8_t*)"FAN NG", 24,	BLACK,	g_deMainAl025Flg? RED: WHITE,	190, 74, 12*6, 24);
+				}
+
+				Ili9341_Ascii((int8_t*)"N=", 24,	BLACK,	g_deMainAl025Flg? RED: WHITE,	202, 98, 12*6, 24);
+				Ili9341_Ascii((int8_t*)" 1", 24,	BLACK,	g_deMainAl025Flg? RED: WHITE,	226, 98, 12*6, 24);
+			}
+			else
+			{
+				if((g_deMainAl025Flg != g_deMainAl025Flg_k) || (g_deMainSelStt != g_deMainSelStt_k))
+				{
+					Ili9341_FilledRect(WHITE, 0, 73, 265, 115);
+					g_deMainAl025Flg_k = g_deMainAl025Flg;
+					g_deMainSelStt_k = g_deMainSelStt;
+				}
+				Ili9341_Ascii((int8_t*)"2.5",		u4f_f60_size,	BLACK,	WHITE,	l_c_num_X,	l_c_num_Y,	(u4f_f60_size >> 1)*3,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)"um",		u4f_f60_size,	BLACK,	WHITE,	l_c_pm_X,	l_c_pm_Y,	(u4f_f60_size >> 1)*2,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)PCnt.Pm025, 	u4f_f60_size,	BLACK,	WHITE,	l_c_par_X,	l_c_par_Y,	(u4f_f60_size >> 1)*8,		u4f_f60_size);
+
+				Ili9341_Ascii((int8_t*)"      ", 24,	BLACK,	WHITE,	190, 74, 12*6, 24);
+
+				Ili9341_Ascii((int8_t*)"N=", 24,	BLACK,	WHITE,	202, 98, 12*6, 24);
+				Ili9341_Ascii((int8_t*)" 1", 24,	BLACK,	WHITE,	226, 98, 12*6, 24);
+			}
+
+			// RIGHT
+			FUN_backgrounMAIN_STATE_right_marker(u1f_pm25_cnt_val[0]);
+
+			// BOTTOM
+//			memcpy(u1f_alarm_cnt_val, g_arMainAl025Asc, 4);
+
+			break;
+		case PM5_0_SEL :
+			if((g_deMainAl050Flg != g_deMainAl050Flg_k) || (g_deMainSelStt != g_deMainSelStt_k) || (Din.ExternalInput1Inv != ExternalInput1Inv_k))
+			{
+				if((g_deMainModeIoNum == 0) || ((g_deMainModeIoNum == 1) && (Din.ExternalInput1Inv == 0)))
+				{
+					if(g_deMainAl050Flg)
+					{
+						Ili9341_FilledRect(RED, 0, 73, 265, 115);
+						g_deMainAl050Flg_k = g_deMainAl050Flg;
+					}
+					else
+					{
+						Ili9341_FilledRect(WHITE, 0, 73, 265, 115);
+						g_deMainAl050Flg_k = g_deMainAl050Flg;
+					}
+				}
+				else
+				{
+					Ili9341_FilledRect(WHITE, 0, 73, 265, 115);
+					g_deMainAl050Flg_k = g_deMainAl050Flg;
+				}
+
+				ExternalInput1Inv_k = Din.ExternalInput1Inv;
+				g_deMainSelStt_k = g_deMainSelStt;
+			}
+			if((g_deMainModeIoNum == 0) || ((g_deMainModeIoNum == 1) && (Din.ExternalInput1Inv == 0)))
+			{
+				// CENTER
+				Ili9341_Ascii((int8_t*)"5.0",		u4f_f60_size,	BLACK,	g_deMainAl050Flg? RED: WHITE,	l_c_num_X,	l_c_num_Y,	(u4f_f60_size >> 1)*3,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)"um",		u4f_f60_size,	BLACK,	g_deMainAl050Flg? RED: WHITE,	l_c_pm_X,	l_c_pm_Y,	(u4f_f60_size >> 1)*2,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)PCnt.Pm050, 	u4f_f60_size,	BLACK,	g_deMainAl050Flg? RED: WHITE,	l_c_par_X,	l_c_par_Y,	(u4f_f60_size >> 1)*8,		u4f_f60_size);
+
+				// Fan Status & Sampling Number
+				if((PM_UART.Alarm & 1) == 0 && (PM_UART.Alarm & 2) == 0)	// Normal Speed
+				{
+					Ili9341_Ascii((int8_t*)"FAN OK", 24,	BLACK,	g_deMainAl050Flg? RED: WHITE,	190, 74, 12*6, 24);
+				}
+				else	// Abnormal
+				{
+					Ili9341_Ascii((int8_t*)"FAN NG", 24,	BLACK,	g_deMainAl050Flg? RED: WHITE,	190, 74, 12*6, 24);
+				}
+
+				Ili9341_Ascii((int8_t*)"N=", 24,	BLACK,	g_deMainAl050Flg? RED: WHITE,	202, 98, 12*6, 24);
+				Ili9341_Ascii((int8_t*)" 1", 24,	BLACK,	g_deMainAl050Flg? RED: WHITE,	226, 98, 12*6, 24);
+			}
+			else
+			{
+				Ili9341_Ascii((int8_t*)"5.0",		u4f_f60_size,	BLACK,	WHITE,	l_c_num_X,	l_c_num_Y,	(u4f_f60_size >> 1)*3,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)"um",		u4f_f60_size,	BLACK,	WHITE,	l_c_pm_X,	l_c_pm_Y,	(u4f_f60_size >> 1)*2,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)PCnt.Pm050, 	u4f_f60_size,	BLACK,	WHITE,	l_c_par_X,	l_c_par_Y,	(u4f_f60_size >> 1)*8,		u4f_f60_size);
+
+				Ili9341_Ascii((int8_t*)"      ", 24,	BLACK,	WHITE,	190, 74, 12*6, 24);
+
+				Ili9341_Ascii((int8_t*)"N=", 24,	BLACK,	WHITE,	202, 98, 12*6, 24);
+				Ili9341_Ascii((int8_t*)" 1", 24,	BLACK,	WHITE,	226, 98, 12*6, 24);
+			}
+
+			// RIGHT
+			FUN_backgrounMAIN_STATE_right_marker(u1f_pm50_cnt_val[0]);
+
+			// BOTTOM
+//			memcpy(u1f_alarm_cnt_val, g_arMainAl050Asc, 4);
+
+			break;
+		case PM10_0_SEL :
+			if((g_deMainAl100Flg != g_deMainAl100Flg_k) || (g_deMainSelStt != g_deMainSelStt_k) || (Din.ExternalInput1Inv != ExternalInput1Inv_k))
+			{
+				if((g_deMainModeIoNum == 0) || ((g_deMainModeIoNum == 1) && (Din.ExternalInput1Inv == 0)))
+				{
+					if(g_deMainAl100Flg)
+					{
+						Ili9341_FilledRect(RED, 0, 73, 265, 115);
+						g_deMainAl100Flg_k = g_deMainAl100Flg;
+					}
+					else
+					{
+						Ili9341_FilledRect(WHITE, 0, 73, 265, 115);
+						g_deMainAl100Flg_k = g_deMainAl100Flg;
+					}
+				}
+				else
+				{
+					Ili9341_FilledRect(WHITE, 0, 73, 265, 115);
+					g_deMainAl100Flg_k = g_deMainAl100Flg;
+				}
+
+				ExternalInput1Inv_k = Din.ExternalInput1Inv;
+				g_deMainSelStt_k = g_deMainSelStt;
+			}
+			if((g_deMainModeIoNum == 0) || ((g_deMainModeIoNum == 1) && (Din.ExternalInput1Inv == 0)))
+			{
+				// CENTER
+				Ili9341_Ascii((int8_t*)" 10",		u4f_f60_size,	BLACK,	g_deMainAl100Flg? RED: WHITE,	l_c_num_X,	l_c_num_Y,	(u4f_f60_size >> 1)*3,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)"um",		u4f_f60_size,	BLACK,	g_deMainAl100Flg? RED: WHITE,	l_c_pm_X,	l_c_pm_Y,	(u4f_f60_size >> 1)*2,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)PCnt.Pm100, 	u4f_f60_size,	BLACK,	g_deMainAl100Flg? RED: WHITE,	l_c_par_X,	l_c_par_Y,	(u4f_f60_size >> 1)*8,		u4f_f60_size);
+
+				// Fan Status & Sampling Number
+				if((PM_UART.Alarm & 1) == 0 && (PM_UART.Alarm & 2) == 0)	// Normal Speed
+				{
+					Ili9341_Ascii((int8_t*)"FAN OK", 24,	BLACK,	g_deMainAl100Flg? RED: WHITE,	190, 74, 12*6, 24);
+				}
+				else	// Abnormal
+				{
+					Ili9341_Ascii((int8_t*)"FAN NG", 24,	BLACK,	g_deMainAl100Flg? RED: WHITE,	190, 74, 12*6, 24);
+				}
+
+				Ili9341_Ascii((int8_t*)"N=", 24,	BLACK,	g_deMainAl100Flg? RED: WHITE,	202, 98, 12*6, 24);
+				Ili9341_Ascii((int8_t*)" 1", 24,	BLACK,	g_deMainAl100Flg? RED: WHITE,	226, 98, 12*6, 24);
+			}
+			else
+			{
+				Ili9341_Ascii((int8_t*)" 10",		u4f_f60_size,	BLACK,	WHITE,	l_c_num_X,	l_c_num_Y,	(u4f_f60_size >> 1)*3,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)"um",		u4f_f60_size,	BLACK,	WHITE,	l_c_pm_X,	l_c_pm_Y,	(u4f_f60_size >> 1)*2,		u4f_f60_size);
+				Ili9341_Ascii((int8_t*)PCnt.Pm100, 	u4f_f60_size,	BLACK,	WHITE,	l_c_par_X,	l_c_par_Y,	(u4f_f60_size >> 1)*8,		u4f_f60_size);
+
+				Ili9341_Ascii((int8_t*)"      ", 24,	BLACK,	WHITE,	190, 74, 12*6, 24);
+
+				Ili9341_Ascii((int8_t*)"N=", 24,	BLACK,	WHITE,	202, 98, 12*6, 24);
+				Ili9341_Ascii((int8_t*)" 1", 24,	BLACK,	WHITE,	226, 98, 12*6, 24);
+			}
+
+			// RIGHT
+			FUN_backgrounMAIN_STATE_right_marker(u1f_pm100_cnt_val[0]);
+
+			// BOTTOM
+//			memcpy(u1f_alarm_cnt_val, g_arMainAl100Asc, 4);
+
+			break;
+		default :
+			break;
+	}
+
+	// ALARM COUNT
+	Ili9341_Ascii(u1f_alarm_cnt_val, 		u4f_f36_size,	BLACK,	WHITE,		l_b_alarm_X,	l_b_alarm_Y,	(u4f_f36_size >> 1) * 4,	u4f_f36_size);
+
+}
+
+void LCD_SettingDisplay(void)	// 9 pcs
+{
+	// Background Setting Page
+	if(g_deBkgdStt == g_deBkgdStt_k)	// After Second Time
+	{
+		if(g_deSetSelStt == g_deSetSelStt_k)	// After Second Time
+		{
+			asm(" NOP");
+		}
+		else									// First time Only(Moved Point of Cursor)
+		{
+			Ili9341_Ascii((int8_t*)" ",	36,	BLACK,	WHITE,	38,	g_arSetCursorY[g_deSetSelStt_k],	18, 36);
+			Ili9341_Ascii((int8_t*)">",	36,	BLACK,	WHITE,	38,	g_arSetCursorY[g_deSetSelStt],	18, 36);
+			g_deSetSelStt_k = g_deSetSelStt;
+		}
+	}
+	else								// First Time Only
+	{
+		if(g_deBkgdStt_k == 1)			// Background is Changed from Main Page
+		{
+			Ili9341_Background(WHITE);
+
+			Ili9341_Ascii((int8_t*)"SETTINGS",		36, BLACK, WHITE, 20, 14, 500, 500);
+
+			g_deSetSelStt = 1;
+		}
+		else							// Background is Changed from Detail Page
+		{
+			Ili9341_Ascii((int8_t*)"SETTINGS         ",	36, BLACK, WHITE, 20, 14, 500, 500);
+
+			Ili9341_FilledRect(WHITE, 0, 50, 320, 190);
+
+			g_deSetSelStt = g_deSetSelStt_k;
+		}
+
+		Ili9341_Ascii((int8_t*)"1.ALARM REF",	36, BLACK, WHITE, 56, g_arSetCursorY[1], 500, 500);
+		Ili9341_Ascii((int8_t*)"2.DATE,TIME",	36, BLACK, WHITE, 56, g_arSetCursorY[2], 500, 500);
+		Ili9341_Ascii((int8_t*)"3.MODE",		36, BLACK, WHITE, 56, g_arSetCursorY[3], 500, 500);
+		Ili9341_Ascii((int8_t*)"4.NETWORK",		36, BLACK, WHITE, 56, g_arSetCursorY[4], 500, 500);
+		Ili9341_Ascii((int8_t*)"5.SOUND",		36, BLACK, WHITE, 56, g_arSetCursorY[5], 500, 500);
+
+		g_deSetSelStt_k = 10;
+
+		g_deBkgdStt_k = g_deBkgdStt;
+	}
+
+	// Texts Setting Page
+
+}
+
+void LCD_DetailsAlarmDisplay(void)
+{
+	if(g_deBkgdStt == g_deBkgdStt_k)	// After Second Time
+	{
+		// Renewal Alarm Reference Data
+		Ili9341_Ascii(g_arSetAl003Asc,	24, BLACK, WHITE, g_arCharX[13], g_arCharY[1], g_arCharSizeX[4], g_arCharSizeY[1]);
+		Ili9341_Ascii(g_arSetAl005Asc,	24, BLACK, WHITE, g_arCharX[13], g_arCharY[2], g_arCharSizeX[4], g_arCharSizeY[1]);
+		Ili9341_Ascii(g_arSetAl010Asc,	24, BLACK, WHITE, g_arCharX[13], g_arCharY[3], g_arCharSizeX[4], g_arCharSizeY[1]);
+		Ili9341_Ascii(g_arSetAl025Asc,	24, BLACK, WHITE, g_arCharX[13], g_arCharY[4], g_arCharSizeX[4], g_arCharSizeY[1]);
+		Ili9341_Ascii(g_arSetAl050Asc,	24, BLACK, WHITE, g_arCharX[13], g_arCharY[5], g_arCharSizeX[4], g_arCharSizeY[1]);
+		Ili9341_Ascii(g_arSetAl100Asc,	24, BLACK, WHITE, g_arCharX[13], g_arCharY[6], g_arCharSizeX[4], g_arCharSizeY[1]);
+
+		if(g_deChSelStt != g_deChSelStt_k)	// Moved Point of Character Cursor
+		{
+			if(g_deChSelStt_k != 0)
+			{
+				Ili9341_FilledRect(WHITE, g_arCharCursorX[g_deChSelStt_k], g_arCharCursorY[g_deDetSelStt], 10, 2);
+			}
+			g_deChSelStt_k = g_deChSelStt;
+		}
+		else
+		{
+			if(g_deChSelStt == 0)
+			{
+				Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], g_arCharSizeX[1], g_arCharSizeY[1]);
+			}
+			else
+			{
+				Ili9341_Ascii((int8_t*)"*", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], g_arCharSizeX[1], g_arCharSizeY[1]);
+				Ili9341_FilledRect(g_deChCursor, g_arCharCursorX[g_deChSelStt], g_arCharCursorY[g_deDetSelStt], 10, 2);
+			}
+		}
+
+		if(g_deDetSelStt != g_deDetSelStt_k)	// Moved Point of Details Cursor
+		{
+			Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt_k], g_arCharSizeX[1], g_arCharSizeY[1]);
+			Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], g_arCharSizeX[1], g_arCharSizeY[1]);
+			g_deDetSelStt_k = g_deDetSelStt;
+		}
+	}
+	else								// First Time Only(Changed to Details)
+	{
+		u1f_button_sel = DETAILS_STATE;
+		Ili9341_Ascii((int8_t*)"ALARM REF ",		36, BLACK, WHITE, 20, 14, 500, 500);
+
+		Ili9341_FilledRect(WHITE, 0, 50, 320, 190);
+		Ili9341_HallowRect(BLACK, 1, 51, 317, 187);
+
+		Ili9341_Ascii((int8_t*)"1)0.3 um :      Pc(s)/L",	24, BLACK, WHITE, g_arCharX[2], g_arDetCursorY[1], g_arCharSizeX[23], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"2)0.5 um :      Pc(s)/L",	24, BLACK, WHITE, g_arCharX[2], g_arDetCursorY[2], g_arCharSizeX[23], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"3)1.0 um :      Pc(s)/L",	24, BLACK, WHITE, g_arCharX[2], g_arDetCursorY[3], g_arCharSizeX[23], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"4)2.5 um :      Pc(s)/L",	24, BLACK, WHITE, g_arCharX[2], g_arDetCursorY[4], g_arCharSizeX[23], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"5)5.0 um :      Pc(s)/L",	24, BLACK, WHITE, g_arCharX[2], g_arDetCursorY[5], g_arCharSizeX[23], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"6) 10 um :      Pc(s)/L",	24, BLACK, WHITE, g_arCharX[2], g_arDetCursorY[6], g_arCharSizeX[23], g_arCharSizeY[1]);
+
+		Ili9341_Ascii((int8_t*)"[SAVE&QUIT]",	24, BLACK, WHITE, g_arCharX[2], g_arDetCursorY[0], g_arCharSizeX[11], g_arCharSizeY[1]);
+
+		g_deDetSelStt = 1;
+		g_deDetSelStt_k = 255;
+		g_deChSelStt = 0;
+		g_deChSelStt_k = 10;
+
+		g_deBkgdStt_k = g_deBkgdStt;
+	}
+
+	// Texts Set Details Page
+}
+/*
+void LCD_DetailsConditionDisplay(void)
+{
+	if(g_deBkgdStt == g_deBkgdStt_k)	// After Second Time
+	{
+		if(g_deDetSelStt == 1)
+		{
+			ConvertNum2AscDec(TEMP_ADC.Temperature, g_arSetTempAsc, 4);
+			ConvertNum2AscDec(TEMP_ADC.Humidity, g_arSetHumiAsc, 4);
+			g_arSetTempAsc[4] = g_arSetTempAsc[3];
+			g_arSetTempAsc[3] = g_arSetTempAsc[2];
+			g_arSetTempAsc[2] = '.';
+			g_arSetHumiAsc[4] = g_arSetHumiAsc[3];
+			g_arSetHumiAsc[3] = g_arSetHumiAsc[2];
+			g_arSetHumiAsc[2] = '.';
+			Ili9341_Ascii(g_arSetTempAsc,	24, BLACK, WHITE, 128+12*7, g_arDetCursorY[2], 500, 24);
+			Ili9341_Ascii(g_arSetHumiAsc,	24, BLACK, WHITE, 128+12*7, g_arDetCursorY[3], 500, 24);
+		}
+
+		if(g_deDetSelStt != g_deDetSelStt_k)
+		{
+			if(g_deDetSelStt == 0)
+			{
+				Ili9341_FilledRect(WHITE, 0, 50, 320, 190);
+				Ili9341_HallowRect(BLACK, 1, 51, 317, 187);
+
+				Ili9341_Ascii((int8_t*)"1)AlarmStatus",	24, BLACK, WHITE, 32, g_arDetCursorY[1], 500, 24);
+				Ili9341_Ascii((int8_t*)"  OverParticle  Normal",	24, BLACK, WHITE, 32, g_arDetCursorY[2], 500, 24);
+				Ili9341_Ascii((int8_t*)"  FanError      Normal",	24, BLACK, WHITE, 32, g_arDetCursorY[3], 500, 24);
+				Ili9341_Ascii((int8_t*)"  SensorComm.   Normal",	24, BLACK, WHITE, 32, g_arDetCursorY[4], 500, 24);
+				Ili9341_Ascii((int8_t*)"  -reserved-    -none-",	24, BLACK, WHITE, 32, g_arDetCursorY[5], 500, 24);
+
+				Ili9341_Ascii((int8_t*)"[  CLOSE  ]",	24, BLACK, WHITE, 32, g_arDetCursorY[0], 144, 24);
+			}
+			if(g_deDetSelStt == 1)
+			{
+				Ili9341_FilledRect(WHITE, 0, 50, 320, 190);
+				Ili9341_HallowRect(BLACK, 1, 51, 317, 187);
+
+				Ili9341_Ascii((int8_t*)"2)SD Card      Ejected",	24, BLACK, WHITE, 32, g_arDetCursorY[1], 500, 24);
+				Ili9341_Ascii((int8_t*)"3)Temperature",	24, BLACK, WHITE, 32, g_arDetCursorY[2], 500, 24);
+				Ili9341_Ascii((int8_t*)"4)Humidity   ",	24, BLACK, WHITE, 32, g_arDetCursorY[3], 500, 24);
+				Ili9341_Ascii((int8_t*)"5)Wifi       Unmounted",	24, BLACK, WHITE, 32, g_arDetCursorY[4], 500, 24);
+
+
+				Ili9341_Ascii((int8_t*)"[  CLOSE  ]",	24, BLACK, WHITE, 32, g_arDetCursorY[0], 144, 24);
+			}
+			g_deDetSelStt_k = g_deDetSelStt;
+		}
+	}
+	else								// First Time Only(Changed to Details)
+	{
+		u1f_button_sel = DETAILS_STATE;
+		Ili9341_Ascii((int8_t*)"CONDITION ",		36, BLACK, WHITE, 20, 14, 500, 500);
+
+		Ili9341_FilledRect(WHITE, 0, 50, 320, 190);
+		Ili9341_HallowRect(BLACK, 1, 51, 317, 187);
+
+		Ili9341_Ascii((int8_t*)"1)AlarmStatus",	24, BLACK, WHITE, 32, g_arDetCursorY[1], 500, 24);
+		Ili9341_Ascii((int8_t*)"  OverParticle  Normal",	24, BLACK, WHITE, 32, g_arDetCursorY[1], 500, 24);
+		Ili9341_Ascii((int8_t*)"  FanError      Normal",	24, BLACK, WHITE, 32, g_arDetCursorY[1], 500, 24);
+		Ili9341_Ascii((int8_t*)"  SensorComm.   Normal",	24, BLACK, WHITE, 32, g_arDetCursorY[1], 500, 24);
+		Ili9341_Ascii((int8_t*)"  -reserved-    -none-",	24, BLACK, WHITE, 32, g_arDetCursorY[1], 500, 24);
+
+		Ili9341_Ascii((int8_t*)"[  CLOSE  ]",	24, BLACK, WHITE, 32, g_arDetCursorY[0], 144, 24);
+
+		g_deDetSelStt = 0;
+		g_deDetSelStt_k = 10;
+		g_deChSelStt = 0;
+		g_deChSelStt_k = 10;
+
+		g_deBkgdStt_k = g_deBkgdStt;
+	}
+}
+*/
+void LCD_DetailsDatetimeDisplay(void)
+{
+	if(g_deBkgdStt == g_deBkgdStt_k)	// After Second Time
+	{
+		Ili9341_Ascii(g_arSetDateAsc,	24, BLACK, WHITE, g_arCharX[4], g_arCharY[2], g_arCharSizeX[8], g_arCharSizeY[1]);
+		Ili9341_Ascii(g_arSetTimeAsc,	24, BLACK, WHITE, g_arCharX[4], g_arCharY[4], g_arCharSizeX[8], g_arCharSizeY[1]);
+		Ili9341_Ascii(g_arSetUpDateAsc,	24, BLACK, WHITE, g_arCharX[4], g_arCharY[6], g_arCharSizeX[4], g_arCharSizeY[1]);
+		Ili9341_Ascii(g_arSetUpTimeAsc,	24, BLACK, WHITE, g_arCharX[14], g_arCharY[6], g_arCharSizeX[4], g_arCharSizeY[1]);
+		if(g_deChSelStt != g_deChSelStt_k)	// Moved Point of Character Cursor
+		{
+			if(g_deChSelStt_k != 0)
+			{
+				Ili9341_FilledRect(WHITE, g_arCharCursorX[g_deChSelStt_k], g_arCharCursorY[g_deDetSelStt+1], 10, 2);
+			}
+			g_deChSelStt_k = g_deChSelStt;
+		}
+		else
+		{
+			if(g_deChSelStt == 0)
+			{
+				Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], g_arCharSizeX[1], g_arCharSizeY[1]);
+			}
+			else
+			{
+				Ili9341_Ascii((int8_t*)"*", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], g_arCharSizeX[1], g_arCharSizeY[1]);
+				Ili9341_FilledRect(g_deChCursor, g_arCharCursorX[g_deChSelStt], g_arCharCursorY[g_deDetSelStt+1], 10, 2);
+			}
+		}
+
+		if(g_deDetSelStt != g_deDetSelStt_k)	// Moved Point of Details Cursor
+		{
+			Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt_k], g_arCharSizeX[1], g_arCharSizeY[1]);
+			Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], g_arCharSizeX[1], g_arCharSizeY[1]);
+			g_deDetSelStt_k = g_deDetSelStt;
+		}
+	}
+	else								// First Time Only(Changed to Details)
+	{
+		u1f_button_sel = DETAILS_STATE;
+		Ili9341_Ascii((int8_t*)"DATE,TIME ",		36, BLACK, WHITE, 20, 14, 500, 500);
+
+		Ili9341_FilledRect(WHITE, 0, 50, 320, 190);
+		Ili9341_HallowRect(BLACK, 1, 51, 317, 187);
+
+		Ili9341_Ascii((int8_t*)"1)Date(YY-MM-DD)",			24, BLACK, WHITE, g_arCharX[2], g_arDetCursorY[1], g_arCharSizeX[16], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"2)Time(HH:MM:SS)",			24, BLACK, WHITE, g_arCharX[2], g_arDetCursorY[3], g_arCharSizeX[16], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"3)UpTime",					24, BLACK, WHITE, g_arCharX[2], g_arDetCursorY[5], g_arCharSizeX[8], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"Days", 						24, BLACK, WHITE, g_arCharX[9], g_arCharY[6], g_arCharSizeX[4], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"Minutes", 					24, BLACK, WHITE, g_arCharX[19], g_arCharY[6], g_arCharSizeX[7], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"[SAVE&QUIT]",				24, BLACK, WHITE, g_arCharX[2], g_arDetCursorY[0], g_arCharSizeX[11], g_arCharSizeY[1]);
+
+		g_deDetSelStt = 1;
+		g_deDetSelStt_k = 255;
+		g_deChSelStt = 0;
+		g_deChSelStt_k = 10;
+
+		g_deBkgdStt_k = g_deBkgdStt;
+	}
+}
+void LCD_DetailsModeDisplay(void)
+{
+	if(g_deBkgdStt == g_deBkgdStt_k)	// After Second Time
+	{
+		// Renewal Alarm Reference Data
+		Ili9341_Ascii(g_deSetModeCtrlNum?((int8_t*)"Used  "):((int8_t*)"Unused"),	24, BLACK, WHITE, g_arCharX[16], g_arCharY[1], g_arCharSizeX[6], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"Server",					24, BLACK, WHITE, g_arCharX[16], g_arCharY[2], g_arCharSizeX[6], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)" 1",						24, BLACK, WHITE, g_arCharX[18], g_arCharY[3], g_arCharSizeX[2], g_arCharSizeY[1]);
+
+		if(g_deChSelStt != g_deChSelStt_k)	// Moved Point of Character Cursor
+		{
+			if(g_deChSelStt_k != 0)
+			{
+				Ili9341_FilledRect(WHITE, g_arCharCursorX[g_deChSelStt_k], g_arCharCursorY[g_deDetSelStt], 10, 2);
+			}
+			g_deChSelStt_k = g_deChSelStt;
+		}
+		else
+		{
+			if(g_deChSelStt == 0)
+			{
+				Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], g_arCharSizeX[1], g_arCharSizeY[1]);
+			}
+			else
+			{
+				Ili9341_Ascii((int8_t*)"*", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], g_arCharSizeX[1], g_arCharSizeY[1]);
+				Ili9341_FilledRect(g_deChCursor, g_arCharCursorX[g_deChSelStt], g_arCharCursorY[g_deDetSelStt], 10, 2);
+			}
+		}
+
+		if(g_deDetSelStt != g_deDetSelStt_k)	// Moved Point of Details Cursor
+		{
+			Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt_k], g_arCharSizeX[1], g_arCharSizeY[1]);
+			Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], g_arCharSizeX[1], g_arCharSizeY[1]);
+			g_deDetSelStt_k = g_deDetSelStt;
+		}
+	}
+	else								// First Time Only(Changed to Details)
+	{
+		u1f_button_sel = DETAILS_STATE;
+		Ili9341_Ascii((int8_t*)"MODE      ",		36, BLACK, WHITE, 20, 14, 500, 500);
+
+		Ili9341_FilledRect(WHITE, 0, 50, 320, 190);
+		Ili9341_HallowRect(BLACK, 1, 51, 317, 187);
+
+		Ili9341_Ascii((int8_t*)"1)Ext.I/O :",				24, BLACK, WHITE, g_arCharX[2], g_arCharY[1], g_arCharSizeX[11], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"2)Network :",				24, BLACK, WHITE, g_arCharX[2], g_arCharY[2], g_arCharSizeX[11], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"3)SMASample:",				24, BLACK, WHITE, g_arCharX[2], g_arCharY[3], g_arCharSizeX[12], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"[SAVE&RESET]",				24, BLACK, WHITE, g_arCharX[2], g_arCharY[0], g_arCharSizeX[12], g_arCharSizeY[1]);
+
+		g_deDetSelStt = 1;
+		g_deDetSelStt_k = 10;
+		g_deChSelStt = 0;
+		g_deChSelStt_k = 10;
+
+		g_deBkgdStt_k = g_deBkgdStt;
+	}
+}
+void LCD_DetailsNetworkDisplay(void)
+{
+	if(g_deBkgdStt == g_deBkgdStt_k)	// After Second Time
+	{
+		if(g_deDetSelStt != g_deDetSelStt_k)	// Moved Point of Details Cursor
+		{
+			if(PAGE_1_OF_2)
+			{
+				Ili9341_FilledRect(WHITE, 2, 52, 316, 186);
+
+				Ili9341_Ascii((int8_t*)"Module Address",			24, BLACK, WHITE, g_arCharX[4], g_arCharY[1], g_arCharSizeX[14], g_arCharSizeY[1]);
+				Ili9341_Ascii((int8_t*)"1)IP :",					24, BLACK, WHITE, g_arCharX[2], g_arCharY[2], g_arCharSizeX[6], g_arCharSizeY[1]);
+				Ili9341_Ascii((int8_t*)"2)SUB:",					24, BLACK, WHITE, g_arCharX[2], g_arCharY[3], g_arCharSizeX[6], g_arCharSizeY[1]);
+				Ili9341_Ascii((int8_t*)"3)GW :",					24, BLACK, WHITE, g_arCharX[2], g_arCharY[4], g_arCharSizeX[6], g_arCharSizeY[1]);
+				Ili9341_Ascii((int8_t*)"4)PORT:",					24, BLACK, WHITE, g_arCharX[2], g_arCharY[5], g_arCharSizeX[7], g_arCharSizeY[1]);
+				Ili9341_Ascii((int8_t*)"5)MAC:",					24, BLACK, WHITE, g_arCharX[2], g_arCharY[6], g_arCharSizeX[6], g_arCharSizeY[1]);
+				Ili9341_Ascii((int8_t*)"                 ( 1/ 2)",	24, BLACK, WHITE, g_arCharX[2], g_arCharY[0], g_arCharSizeX[24], g_arCharSizeY[1]);
+			}
+			if(PAGE_2_OF_2)
+			{
+				Ili9341_FilledRect(WHITE, 2, 52, 316, 186);
+
+				Ili9341_Ascii((int8_t*)"Dest Address",				24, BLACK, WHITE, g_arCharX[4], g_arCharY[1], g_arCharSizeX[19], g_arCharSizeY[1]);
+				Ili9341_Ascii((int8_t*)"6)IP :",					24, BLACK, WHITE, g_arCharX[2], g_arCharY[2], g_arCharSizeX[6], g_arCharSizeY[1]);
+				Ili9341_Ascii((int8_t*)"7)PORT:",					24, BLACK, WHITE, g_arCharX[2], g_arCharY[3], g_arCharSizeX[7], g_arCharSizeY[1]);
+				Ili9341_Ascii((int8_t*)"[SAVE&QUIT]      ( 2/ 2)",	24, BLACK, WHITE, g_arCharX[2], g_arCharY[0], g_arCharSizeX[24], g_arCharSizeY[1]);
+			}
+			Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt_k], 12, 24);
+			Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], 12, 24);
+			g_deDetSelStt_k = g_deDetSelStt;
+		}
+
+		if((g_deDetSelStt >= 1) && (g_deDetSelStt <= 6))
+		{
+			Ili9341_Ascii(g_arSetModIpAsc,						24, BLACK, WHITE, g_arCharX[9], g_arCharY[2], g_arCharSizeX[15], 24);
+			Ili9341_Ascii(g_arSetModSubAsc,						24, BLACK, WHITE, g_arCharX[9], g_arCharY[3], g_arCharSizeX[15], 24);
+			Ili9341_Ascii(g_arSetModGwAsc,						24, BLACK, WHITE, g_arCharX[9], g_arCharY[4], g_arCharSizeX[15], 24);
+			Ili9341_Ascii(g_arSetModPortAsc,					24, BLACK, WHITE, g_arCharX[9], g_arCharY[5], g_arCharSizeX[5], 24);
+			Ili9341_Ascii(g_arSetModMacAsc,						24, BLACK, WHITE, g_arCharX[9], g_arCharY[6], g_arCharSizeX[17], g_arCharSizeY[1]);
+		}
+		if(((g_deDetSelStt >= 7) && (g_deDetSelStt <= 12)) || (g_deDetSelStt == 0))
+		{
+			Ili9341_Ascii(g_arSetDestIpAsc,	24, BLACK, WHITE, g_arCharX[9], g_arCharY[2], g_arCharSizeX[15], 24);
+			Ili9341_Ascii(g_arSetDestPortAsc,	24, BLACK, WHITE, g_arCharX[9], g_arCharY[3], g_arCharSizeX[5], 24);
+		}
+
+		if(g_deChSelStt != g_deChSelStt_k)
+		{
+			if(g_deChSelStt_k != 0)
+			{
+				Ili9341_FilledRect(WHITE, g_arCharCursorX[g_deChSelStt_k], g_arCharCursorY[g_deDetSelStt], 10, 2);
+			}
+			g_deChSelStt_k = g_deChSelStt;
+		}
+		else
+		{
+			if(g_deChSelStt == 0)
+			{
+				Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], 12, 24);
+			}
+			else
+			{
+				Ili9341_Ascii((int8_t*)"*", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], 12, 24);
+				Ili9341_FilledRect(g_deChCursor, g_arCharCursorX[g_deChSelStt], g_arCharCursorY[g_deDetSelStt], 10, 2);
+			}
+		}
+	}
+	else								// First Time Only(Changed to Details)
+	{
+		u1f_button_sel = DETAILS_STATE;
+		Ili9341_Ascii((int8_t*)"NETWORK   ",		36, BLACK, WHITE, 20, 14, 500, 500);
+
+		Ili9341_FilledRect(WHITE, 0, 50, 320, 190);
+		Ili9341_HallowRect(BLACK, 1, 51, 317, 187);
+
+		Ili9341_Ascii((int8_t*)"Sensor Address",			24, BLACK, WHITE, g_arCharX[4], g_arCharY[1], g_arCharSizeX[14], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"1)IP :",					24, BLACK, WHITE, g_arCharX[2], g_arCharY[2], g_arCharSizeX[6], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"2)SUB:",					24, BLACK, WHITE, g_arCharX[2], g_arCharY[3], g_arCharSizeX[6], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"3)GW :",					24, BLACK, WHITE, g_arCharX[2], g_arCharY[4], g_arCharSizeX[6], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"4)PORT:",					24, BLACK, WHITE, g_arCharX[2], g_arCharY[5], g_arCharSizeX[7], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"5)MAC:",					24, BLACK, WHITE, g_arCharX[2], g_arCharY[6], g_arCharSizeX[6], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"                 ( 1/ 2)",	24, BLACK, WHITE, g_arCharX[2], g_arCharY[0], g_arCharSizeX[24], g_arCharSizeY[1]);
+
+		g_deDetSelStt = 2;
+		g_deDetSelStt_k = 2;
+		g_deChSelStt = 0;
+		g_deChSelStt_k = 0;
+
+		g_deBkgdStt_k = g_deBkgdStt;
+	}
+}
+void LCD_DetailsSoundDisplay(void)
+{
+	if(g_deBkgdStt == g_deBkgdStt_k)	// After Second Time
+	{
+		// Renewal Alarm Reference Data
+//		Ili9341_Ascii(g_arSetAl003Asc,	24, BLACK, WHITE, g_arCharX[13], g_arCharY[1], g_arCharSizeX[4], g_arCharSizeY[1]);
+
+		if(g_deChSelStt != g_deChSelStt_k)	// Moved Point of Character Cursor
+		{
+			if(g_deChSelStt_k != 0)
+			{
+				Ili9341_FilledRect(WHITE, g_arCharCursorX[g_deChSelStt_k], g_arCharCursorY[g_deDetSelStt], 10, 2);
+			}
+			g_deChSelStt_k = g_deChSelStt;
+		}
+		else
+		{
+			if(g_deChSelStt == 0)
+			{
+				Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], g_arCharSizeX[1], g_arCharSizeY[1]);
+			}
+			else
+			{
+				Ili9341_Ascii((int8_t*)"*", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], g_arCharSizeX[1], g_arCharSizeY[1]);
+				Ili9341_FilledRect(g_deChCursor, g_arCharCursorX[g_deChSelStt], g_arCharCursorY[g_deDetSelStt], 10, 2);
+			}
+		}
+
+		if(g_deDetSelStt != g_deDetSelStt_k)	// Moved Point of Details Cursor
+		{
+			Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt_k], g_arCharSizeX[1], g_arCharSizeY[1]);
+			Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, g_arDetCursorX[1], g_arDetCursorY[g_deDetSelStt], g_arCharSizeX[1], g_arCharSizeY[1]);
+			g_deDetSelStt_k = g_deDetSelStt;
+		}
+	}
+	else								// First Time Only(Changed to Details)
+	{
+		u1f_button_sel = DETAILS_STATE;
+		Ili9341_Ascii((int8_t*)"SOUND     ",		36, BLACK, WHITE, 20, 14, 500, 500);
+
+		Ili9341_FilledRect(WHITE, 0, 50, 320, 190);
+		Ili9341_HallowRect(BLACK, 1, 51, 317, 187);
+
+		Ili9341_Ascii((int8_t*)"1)AlarmType :",				24, BLACK, WHITE, g_arCharX[2], g_arCharY[1], g_arCharSizeX[13], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"2)Volume:",					24, BLACK, WHITE, g_arCharX[2], g_arCharY[2], g_arCharSizeX[9], g_arCharSizeY[1]);
+		Ili9341_Ascii((int8_t*)"[SAVE&QUIT]",				24, BLACK, WHITE, 32, g_arDetCursorY[0], 144, 24);
+
+		g_deDetSelStt = 1;
+		g_deDetSelStt_k = 10;
+		g_deChSelStt = 0;
+		g_deChSelStt_k = 10;
+
+		g_deBkgdStt_k = g_deBkgdStt;
+	}
+}
+
+// 중 하단 고정 글자 출력
+//===========================================================================//
+//  Function Name       : FUN_backgrounMAIN_STATE                                //
+//  Function Method     : Routine : FUN_background_Routine()                 //
+//  Return Value        : void                                               //
+//  Arguments           : void                                               //
+//  Date                : 2019/06/25                                         //
+//  Modify Date         :                                                    //
+//  Maker Name          : Lee S.H                                            //
+//  Modify Name         :                                                    //
+//===========================================================================//
+void FUN_backgrounMAIN_STATE(void)
+{
+	// BAR										Start X	 	  End X		 	Start Y		  End Y
+	Ili9341_Block_insert(C_RED			,	u2f_bar_1_sc ,u2f_bar_1_sp ,u2f_bar_1_ec ,u2f_bar_1_ep,	0);
+	Ili9341_Block_insert(C_ORANGE		,	u2f_bar_2_sc ,u2f_bar_2_sp ,u2f_bar_2_ec ,u2f_bar_2_ep,	0);
+	Ili9341_Block_insert(C_YELLOW		,	u2f_bar_3_sc ,u2f_bar_3_sp ,u2f_bar_3_ec ,u2f_bar_3_ep,	0);
+	Ili9341_Block_insert(C_GREENYELLOW	,	u2f_bar_4_sc ,u2f_bar_4_sp ,u2f_bar_4_ec ,u2f_bar_4_ep,	0);
+	Ili9341_Block_insert(C_GREEN		,	u2f_bar_5_sc ,u2f_bar_5_sp ,u2f_bar_5_ec ,u2f_bar_5_ep,	0);
+	Ili9341_Block_insert(C_SKY			,	u2f_bar_6_sc ,u2f_bar_6_sp ,u2f_bar_6_ec ,u2f_bar_6_ep,	0);
+	Ili9341_Block_insert(C_BLUE			,	u2f_bar_7_sc ,u2f_bar_7_sp ,u2f_bar_7_ec ,u2f_bar_7_ep,	0);
+
+	//BOTTOM  Alarm
+	Ili9341_Ascii(	(int8_t*)"Alarm",					// 출력 문자
+					u4f_f36_size,				// Font Size = 36
+					BLACK,						// Font Color
+					WHITE,						// Font Background Color
+					l_alarm_X,					// X 좌표
+					l_alarm_Y,					// Y 좌표
+					(u4f_f36_size >> 1)*5,		// [Font 크기 / 2](Font X크기) * Font 수
+					u4f_f36_size);				// Font 크기 (Font Y크기)
+
+	// BLACK LINE 2 // 하단 2줄
+	Ili9341_Block_insert(BLACK,	49, 216, 241, 218, 0);
+	Ili9341_Block_insert(BLACK,	45, 222, 245, 224, 0);
+
+	// "^" 표시
+	Ili9341_Ascii(	(int8_t*)"^",						// 출력 문자
+					u4f_f36_size,               // Font Size = 36
+					BLACK,                      // Font Color
+					WHITE,                      // Font Background Color
+					l_c_pm_sel_X + u2f_1st_blok,// X 좌표
+					l_c_pm_sel_Y,               // Y 좌표
+					(u4f_f36_size >> 1),        // [Font 크기 / 2](Font X크기) * Font 수
+					u4f_f36_size);              // Font 크기 (Font Y크기)
+}
+
+//===========================================================================//
+//  Function Name       : FUN_backgrounMAIN_STATE_top_color                      //
+//  Function Method     : Routine : FUN_background_Routine()                 //
+//  Return Value        : void                                               //
+//  Arguments           : void                                               //
+//  Date                : 2019/06/25                                         //
+//  Modify Date         :                                                    //
+//  Maker Name          : Lee S.H                                            //
+//  Modify Name         :                                                    //
+//===========================================================================//
+void FUN_backgrounMAIN_STATE_top_color(uint32_t u4t_pm_cnt, uint16_t u2t_sel_block, uint8_t u1t_sel_pm)
+{
+	//-----------------------------------------------------------------------------
+	// 파티클 카운터에 따른 색상 변경
+	//-----------------------------------------------------------------------------
+	// BLUE
+	if(u4t_pm_cnt <= BLUE_CUT)
+	{
+		u2f_b_text_color = C_BLUE;
+	}
+	// SKY
+	else if(u4t_pm_cnt <= SKY_CUT)
+	{
+		u2f_b_text_color = C_SKY;
+	}
+	// GREEN
+	else if(u4t_pm_cnt <= GREEN_CUT)
+	{
+		u2f_b_text_color = C_GREEN;
+	}
+	// GREENYELLOW
+	else if(u4t_pm_cnt <= GREENYELLOW_CUT)
+	{
+		u2f_b_text_color = C_GREENYELLOW;
+	}
+	// YELLOW
+	else if(u4t_pm_cnt <= YELLOW_CUT)
+	{
+		u2f_b_text_color = C_YELLOW;
+	}
+	// ORANGE
+	else if(u4t_pm_cnt <= ORANGE_CUT)
+	{
+		u2f_b_text_color = C_ORANGE;
+	}
+	// RED
+	else
+	{
+		u2f_b_text_color = C_RED;
+	}
+
+	//-----------------------------------------------------------------------------
+	// TEXT Background color - State로 저장
+	//-----------------------------------------------------------------------------
+	if(u1t_sel_pm == PM0_5_SEL)			// PM 0.5인 경우
+	{
+		// 색상 저장
+		g_dePm005Stt = u2f_b_text_color;
+
+		// 상태 변화에만 1회 (Block 색상 변경 - Text 배경 색상 변환)
+		if(g_dePm005Stt != g_dePm005Stt_k)
+		{
+			// 상단 박스 색상 변경
+			Ili9341_Block_insert(	g_dePm005Stt,					// 색상
+									u2f_W_sc + u2t_sel_block,		// Start X
+									u2f_W_sp,						// End X
+									u2f_W_ec + u2t_sel_block,		// Start Y
+									u2f_W_ep,						// End Y
+									0);								// Not USED : 0
+
+			// 상단 고정 문자 + 검정 테두리
+			FUN_backgrounMAIN_STATE_top_text_line(u1t_sel_pm);
+
+			// 상태 변화 저장
+			g_dePm005Stt_k = g_dePm005Stt;
+		}
+	}
+	else if(u1t_sel_pm == PM1_0_SEL)			// PM 1.0인 경우
+	{
+		// 색상 저장
+		g_dePm010Stt = u2f_b_text_color;
+
+		// 상태 변화에만 1회 (Block 색상 변경 - Text 배경 색상 변환)
+		if(g_dePm010Stt != g_dePm010Stt_k)
+		{
+			// 상단 박스 색상 변경
+			Ili9341_Block_insert(	g_dePm010Stt,					// 색상
+									u2f_W_sc + u2t_sel_block,   	// Start X
+									u2f_W_sp,                   	// End X
+									u2f_W_ec + u2t_sel_block,   	// Start Y
+									u2f_W_ep,                   	// End Y
+									0);                         	// Not USED : 0
+
+			// 상단 고정 문자 + 검정 테두리
+			FUN_backgrounMAIN_STATE_top_text_line(u1t_sel_pm);
+
+			// 상태 변화 저장
+			g_dePm010Stt_k = g_dePm010Stt;
+		}
+	}
+	else if(u1t_sel_pm == PM2_5_SEL)			// PM 2.5인 경우
+	{
+		// 색상 저장
+		g_dePm025Stt = u2f_b_text_color;
+
+		// 상태 변화에만 1회 (Block 색상 변경 - Text 배경 색상 변환)
+		if(g_dePm025Stt != g_dePm025Stt_k)
+		{
+			// 상단 박스 색상 변경
+			Ili9341_Block_insert(	g_dePm025Stt,					// 색상
+									u2f_W_sc + u2t_sel_block,		// Start X
+									u2f_W_sp,	                	// End X
+									u2f_W_ec + u2t_sel_block,		// Start Y
+									u2f_W_ep,	                	// End Y
+									0);                         	// Not USED : 0
+
+			// 상단 고정 문자 + 검정 테두리
+			FUN_backgrounMAIN_STATE_top_text_line(u1t_sel_pm);
+
+			// 상태 변화 저장
+			g_dePm025Stt_k = g_dePm025Stt;
+		}
+	}
+	else if(u1t_sel_pm == PM5_0_SEL)			// PM 5.0인 경우
+	{
+		// 색상 저장
+		g_dePm050Stt = u2f_b_text_color;
+
+		// 상태 변화에만 1회 (Block 색상 변경 - Text 배경 색상 변환)
+		if(g_dePm050Stt != g_dePm050Stt_k)
+		{
+			// 상단 박스 색상 변경
+			Ili9341_Block_insert(	g_dePm050Stt,					// 색상
+									u2f_W_sc + u2t_sel_block, 		// Start X
+									u2f_W_sp,	                	// End X
+									u2f_W_ec + u2t_sel_block, 		// Start Y
+									u2f_W_ep,	                	// End Y
+									0);                         	// Not USED : 0
+
+			// 상단 고정 문자 + 검정 테두리
+			FUN_backgrounMAIN_STATE_top_text_line(u1t_sel_pm);
+
+			// 상태 변화 저장
+			g_dePm050Stt_k = g_dePm050Stt;
+		}
+	}
+
+	else if(u1t_sel_pm == PM10_0_SEL)			// PM 10인 경우
+	{
+		// 색상 저장
+		g_dePm100Stt = u2f_b_text_color;
+
+		// 상태 변화에만 1회 (Block 색상 변경 - Text 배경 색상 변환)
+		if(g_dePm100Stt != g_dePm100Stt_k)
+		{
+			// 상단 박스 영역 클리어
+			Ili9341_Block_insert(	WHITE,							// 색상
+									0, 								// Start X
+									0,	                        	// End X
+									320, 	                    	// Start Y
+									43,	                        	// End Y
+									0);                         	// Not USED : 0
+
+			// 상단 박스 색상 변경
+			Ili9341_Block_insert(	g_dePm100Stt,				// 색상
+									u2f_W_sc + u2t_sel_block, 		// Start X
+									u2f_W_sp,	                	// End X
+									u2f_W_ec + u2t_sel_block,   	// Start Y
+									u2f_W_ep,	                	// End Y
+									0);                         	// Not USED : 0
+
+			// 상단 고정 문자 + 검정 테두리
+			FUN_backgrounMAIN_STATE_top_text_line(u1t_sel_pm);
+
+			// 상태 변화 저장
+			g_dePm100Stt_k = g_dePm100Stt;
+		}
+	}
+
+	else;
+}
+
+//===========================================================================//
+//  Function Name       : FUN_backgrounMAIN_STATE_top_text_line                  //
+//  Function Method     : Routine : FUN_background_Routine()                 //
+//  Return Value        : void                                               //
+//  Arguments           : void                                               //
+//  Date                : 2019/06/25                                         //
+//  Modify Date         :                                                    //
+//  Maker Name          : Lee S.H                                            //
+//  Modify Name         :                                                    //
+//===========================================================================//
+void FUN_backgrounMAIN_STATE_top_text_line(uint8_t u1t_sel_pm)
+{
+	// 상단 고정 문자
+	if(u1t_sel_pm == PM0_5_SEL)
+	{
+		Ili9341_Ascii(		(int8_t*)"0.5",						// 출력 문자
+							u4f_f24_size,				// Font Size = 24
+							BLACK,						// Font Color
+							g_dePm005Stt,				// Font Background Color
+							0  + 5 + u2f_1st_blok,		// X 좌표
+							0,							// Y 좌표
+							(u4f_f24_size >> 1) * 3,	// [Font 크기 / 2](Font X크기) * Font 수
+							u4f_f24_size);				// Font 크기 (Font Y크기)
+
+		Ili9341_Ascii(		(int8_t*)"um",						// 출력 문자
+							u4f_f24_size,				// Font Size = 24
+							BLACK,						// Font Color
+							g_dePm005Stt,				// Font Background Color
+							42 + 5 + u2f_1st_blok,		// X 좌표
+							0,							// Y 좌표
+							(u4f_f24_size >> 1) * 2,	// [Font 크기 / 2](Font X크기) * Font 수
+							u4f_f24_size);				// Font 크기 (Font Y크기)
+	}
+	else if(u1t_sel_pm == PM1_0_SEL)
+	{
+		Ili9341_Ascii(		(int8_t*)"1.0",						// 출력 문자
+							u4f_f24_size,				// Font Size = 24
+							BLACK,						// Font Color
+							g_dePm010Stt,				// Font Background Color
+							0  + 5 + u2f_2nd_blok,		// X 좌표
+							0,							// Y 좌표
+							(u4f_f24_size >> 1) * 3,	// [Font 크기 / 2](Font X크기) * Font 수
+							u4f_f24_size);				// Font 크기 (Font Y크기)
+
+		Ili9341_Ascii(		(int8_t*)"um",						// 출력 문자
+							u4f_f24_size,				// Font Size = 24
+							BLACK,						// Font Color
+							g_dePm010Stt,				// Font Background Color
+							42 + 5 + u2f_2nd_blok,		// X 좌표
+							0,							// Y 좌표
+							(u4f_f24_size >> 1) * 2,	// [Font 크기 / 2](Font X크기) * Font 수
+							u4f_f24_size);				// Font 크기 (Font Y크기)
+	}
+	else if(u1t_sel_pm == PM2_5_SEL)
+	{
+		Ili9341_Ascii(		(int8_t*)"2.5",						// 출력 문자
+							u4f_f24_size,				// Font Size = 24
+							BLACK,						// Font Color
+							g_dePm025Stt,				// Font Background Color
+							0  + 5 + u2f_3th_blok,		// X 좌표
+							0,							// Y 좌표
+							(u4f_f24_size >> 1) * 3,	// [Font 크기 / 2](Font X크기) * Font 수
+							u4f_f24_size);				// Font 크기 (Font Y크기)
+
+		Ili9341_Ascii(		(int8_t*)"um",						// 출력 문자
+							u4f_f24_size,				// Font Size = 24
+							BLACK,						// Font Color
+							g_dePm025Stt,				// Font Background Color
+							42 + 5 + u2f_3th_blok,		// X 좌표
+							0,							// Y 좌표
+							(u4f_f24_size >> 1) * 2,	// [Font 크기 / 2](Font X크기) * Font 수
+							u4f_f24_size);				// Font 크기 (Font Y크기)
+	}
+	else if(u1t_sel_pm == PM5_0_SEL)
+	{
+		Ili9341_Ascii(		(int8_t*)"5.0",						// 출력 문자
+							u4f_f24_size,				// Font Size = 24
+							BLACK,						// Font Color
+							g_dePm050Stt,				// Font Background Color
+							0  + 5 + u2f_4th_blok,		// X 좌표
+							0,							// Y 좌표
+							(u4f_f24_size >> 1) * 3,	// [Font 크기 / 2](Font X크기) * Font 수
+							u4f_f24_size);				// Font 크기 (Font Y크기)
+
+		Ili9341_Ascii(		(int8_t*)"um",						// 출력 문자
+							u4f_f24_size,				// Font Size = 24
+							BLACK,						// Font Color
+							g_dePm050Stt,				// Font Background Color
+							42 + 5 + u2f_4th_blok,		// X 좌표
+							0,							// Y 좌표
+							(u4f_f24_size >> 1) * 2,	// [Font 크기 / 2](Font X크기) * Font 수
+							u4f_f24_size);				// Font 크기 (Font Y크기)
+	}
+
+	else if(u1t_sel_pm == PM10_0_SEL)
+	{
+		Ili9341_Ascii(		(int8_t*)" 10",						// 출력 문자
+							u4f_f24_size,				// Font Size = 24
+							BLACK,						// Font Color
+							g_dePm100Stt,			// Font Background Color
+							0  + 5 + u2f_1st_blok,		// X 좌표
+							0,							// Y 좌표
+							(u4f_f24_size >> 1) * 3,	// [Font 크기 / 2](Font X크기) * Font 수
+							u4f_f24_size);				// Font 크기 (Font Y크기)
+
+		Ili9341_Ascii(		(int8_t*)"um",						// 출력 문자
+							u4f_f24_size,				// Font Size = 24
+							BLACK,						// Font Color
+							g_dePm100Stt,			// Font Background Color
+							42 + 5 + u2f_1st_blok,		// X 좌표
+							0,							// Y 좌표
+							(u4f_f24_size >> 1) * 2,	// [Font 크기 / 2](Font X크기) * Font 수
+							u4f_f24_size);				// Font 크기 (Font Y크기)
+	}
+
+	else;
+
+	// 검은 테두리
+	for(uint8_t i = 0; i<5; i++)
+	{
+		// PM 0.5 / PM 10
+		if((u1t_sel_pm == PM0_5_SEL) || (u1t_sel_pm == PM10_0_SEL))
+		{
+			Ili9341_Block_insert(	BLACK,						// 출력 문자
+									u2f_B_h_sc + u2f_1st_blok,	// Start X
+									u2f_B_h_sp,					// End X
+									u2f_B_h_ec + u2f_1st_blok,	// Start Y
+									u2f_B_h_ep,					// End Y
+									i);							// X,Y 이동
+
+			Ili9341_Block_insert(	BLACK,						// 출력 문자
+									u2f_B_v_sc + u2f_1st_blok,	// Start X
+									u2f_B_v_sp,	                // End X
+									u2f_B_v_ec + u2f_1st_blok,	// Start Y
+									u2f_B_v_ep,	                // End Y
+									i);                         // X,Y 이동
+		}
+
+		// PM 1.0
+		if(u1t_sel_pm == PM1_0_SEL)
+		{
+			Ili9341_Block_insert(	BLACK,						// 출력 문자
+									u2f_B_h_sc + u2f_2nd_blok,	// Start X
+									u2f_B_h_sp,	                // End X
+									u2f_B_h_ec + u2f_2nd_blok,	// Start Y
+									u2f_B_h_ep,	                // End Y
+									i);                         // X,Y 이동
+
+			Ili9341_Block_insert(	BLACK,						// 출력 문자
+									u2f_B_v_sc + u2f_2nd_blok,	// Start X
+									u2f_B_v_sp,	                // End X
+									u2f_B_v_ec + u2f_2nd_blok,	// Start Y
+									u2f_B_v_ep,	                // End Y
+									i);                         // X,Y 이동
+		}
+
+		// PM 2.5
+		if(u1t_sel_pm == PM2_5_SEL)
+		{
+			Ili9341_Block_insert(	BLACK,						// 출력 문자
+									u2f_B_h_sc + u2f_3th_blok,	// Start X
+									u2f_B_h_sp,	                // End X
+									u2f_B_h_ec + u2f_3th_blok,	// Start Y
+									u2f_B_h_ep,	                // End Y
+									i);                         // X,Y 이동
+
+			Ili9341_Block_insert(	BLACK,						// 출력 문자
+									u2f_B_v_sc + u2f_3th_blok,	// Start X
+									u2f_B_v_sp,	                // End X
+									u2f_B_v_ec + u2f_3th_blok,	// Start Y
+									u2f_B_v_ep,	                // End Y
+									i);                         // X,Y 이동
+		}
+
+		// PM 5.0
+		if(u1t_sel_pm == PM5_0_SEL)
+		{
+			Ili9341_Block_insert(	BLACK,						// 출력 문자
+									u2f_B_h_sc + u2f_4th_blok,	// Start X
+									u2f_B_h_sp,	                // End X
+									u2f_B_h_ec + u2f_4th_blok,	// Start Y
+									u2f_B_h_ep,	                // End Y
+									i);                         // X,Y 이동
+
+			Ili9341_Block_insert(	BLACK,						// 출력 문자
+									u2f_B_v_sc + u2f_4th_blok,	// Start X
+									u2f_B_v_sp,	                // End X
+									u2f_B_v_ec + u2f_4th_blok,	// Start Y
+									u2f_B_v_ep,	                // End Y
+									i);                         // X,Y 이동
+		}
+	}
+}
+
+void FUN_backgrounMAIN_STATE_right_marker(char a_Color)
+{
+	// BLUE
+	if(a_Color < '1')
+	{
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_1_sc, u2f_bar_Mark_1_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_2_sc, u2f_bar_Mark_2_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_3_sc, u2f_bar_Mark_3_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_4_sc, u2f_bar_Mark_4_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_5_sc, u2f_bar_Mark_5_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_6_sc, u2f_bar_Mark_6_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, u2f_bar_Mark_7_sc, u2f_bar_Mark_7_sp, 12, 24);
+	}
+	// SKY
+	else if(a_Color < '2')
+	{
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_1_sc, u2f_bar_Mark_1_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_2_sc, u2f_bar_Mark_2_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_3_sc, u2f_bar_Mark_3_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_4_sc, u2f_bar_Mark_4_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_5_sc, u2f_bar_Mark_5_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, u2f_bar_Mark_6_sc, u2f_bar_Mark_6_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_7_sc, u2f_bar_Mark_7_sp, 12, 24);
+	}
+	// GREEN
+	else if(a_Color < '3')
+	{
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_1_sc, u2f_bar_Mark_1_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_2_sc, u2f_bar_Mark_2_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_3_sc, u2f_bar_Mark_3_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_4_sc, u2f_bar_Mark_4_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, u2f_bar_Mark_5_sc, u2f_bar_Mark_5_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_6_sc, u2f_bar_Mark_6_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_7_sc, u2f_bar_Mark_7_sp, 12, 24);
+	}
+	// GREENYELLOW
+	else if(a_Color < '4')
+	{
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_1_sc, u2f_bar_Mark_1_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_2_sc, u2f_bar_Mark_2_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_3_sc, u2f_bar_Mark_3_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, u2f_bar_Mark_4_sc, u2f_bar_Mark_4_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_5_sc, u2f_bar_Mark_5_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_6_sc, u2f_bar_Mark_6_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_7_sc, u2f_bar_Mark_7_sp, 12, 24);
+	}
+	// YELLOW
+	else if(a_Color < '5')
+	{
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_1_sc, u2f_bar_Mark_1_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_2_sc, u2f_bar_Mark_2_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, u2f_bar_Mark_3_sc, u2f_bar_Mark_3_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_4_sc, u2f_bar_Mark_4_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_5_sc, u2f_bar_Mark_5_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_6_sc, u2f_bar_Mark_6_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_7_sc, u2f_bar_Mark_7_sp, 12, 24);
+	}
+	// ORANGE
+	else if(a_Color < '6')
+	{
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_1_sc, u2f_bar_Mark_1_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, u2f_bar_Mark_2_sc, u2f_bar_Mark_2_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_3_sc, u2f_bar_Mark_3_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_4_sc, u2f_bar_Mark_4_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_5_sc, u2f_bar_Mark_5_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_6_sc, u2f_bar_Mark_6_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_7_sc, u2f_bar_Mark_7_sp, 12, 24);
+	}
+	// RED
+	else
+	{
+		Ili9341_Ascii((int8_t*)">", 24, BLACK, WHITE, u2f_bar_Mark_1_sc, u2f_bar_Mark_1_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_2_sc, u2f_bar_Mark_2_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_3_sc, u2f_bar_Mark_3_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_4_sc, u2f_bar_Mark_4_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_5_sc, u2f_bar_Mark_5_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_6_sc, u2f_bar_Mark_6_sp, 12, 24);
+		Ili9341_Ascii((int8_t*)" ", 24, BLACK, WHITE, u2f_bar_Mark_7_sc, u2f_bar_Mark_7_sp, 12, 24);
+	}
+}
+
+
+void TEXT_TEXT_TEXT_TEXT_TEXT_TEXT_TEXT_TEXT_TEXT_TEXT_TEXT_TEXT(void){
+}
+
+void BUTTON_BUTTON_BUTTON_BUTTON_BUTTON_BUTTON_BUTTON_BUTTON(void){
+}
+
+void LCD_MainStatus(void)
+{
+	// Inputs Main Page
+	if(g_deSw1ShortFlg == 1)		// Change to Smaller Particle Selection
+	{
+		if(g_deMainSelStt > PM0_5_SEL)
+		{
+			g_deMainSelStt--;
+		}
+		else
+		{
+			g_deMainSelStt = PM0_5_SEL;
+		}
+
+		switch(g_deMainSelStt)
+		{
+			case 2 :
+				Ili9341_Ascii((int8_t*)"^",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_1st_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				Ili9341_Ascii((int8_t*)" ",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_2nd_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				break;
+			case 3 :
+				Ili9341_Ascii((int8_t*)"^",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_2nd_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				Ili9341_Ascii((int8_t*)" ",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_3th_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				break;
+			case 4 :
+				Ili9341_Ascii((int8_t*)"^",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_3th_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				Ili9341_Ascii((int8_t*)" ",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_4th_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				break;
+			case 5 :
+				Ili9341_Ascii((int8_t*)" ",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_1st_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				Ili9341_Ascii((int8_t*)"^",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_4th_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				break;
+			default :
+				break;
+		}
+
+		g_deSw1ShortFlg = 0;
+	}
+
+	if(g_deSw2ShortFlg == 1)		// Change to Bigger Particle Selection
+	{
+		if(g_deMainSelStt < PM10_0_SEL)
+		{
+			g_deMainSelStt++;
+		}
+		else
+		{
+			g_deMainSelStt = PM10_0_SEL;
+		}
+
+		switch(g_deMainSelStt)
+		{
+			case 3 :
+				Ili9341_Ascii((int8_t*)" ",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_1st_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				Ili9341_Ascii((int8_t*)"^",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_2nd_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				break;
+			case 4 :
+				Ili9341_Ascii((int8_t*)" ",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_2nd_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				Ili9341_Ascii((int8_t*)"^",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_3th_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				break;
+			case 5 :
+				Ili9341_Ascii((int8_t*)" ",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_3th_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				Ili9341_Ascii((int8_t*)"^",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_4th_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				break;
+			case 6 :
+				Ili9341_Ascii((int8_t*)"^",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_1st_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				Ili9341_Ascii((int8_t*)" ",	u4f_f36_size,	BLACK,	WHITE,	31 + u2f_4th_blok,	43,		(u4f_f36_size >> 1),	u4f_f36_size);
+				break;
+			default :
+				break;
+		}
+
+		g_deSw2ShortFlg = 0;
+	}
+
+	if(g_deSw3LongFlg == 1)			// Change to Setting Screen
+	{
+		g_deBkgdStt = SETTING_STATE;
+		g_deSetSelStt = 1;
+	}
+}
+
+void LCD_SettingStatus(void)
+{
+	// Inputs Setting Page
+	if(g_deSw1ShortFlg == 1)		// Change to Lower Setting List Selection
+	{
+		if(g_deSetSelStt > 1)
+			g_deSetSelStt--;
+		else
+			g_deSetSelStt = 1;
+		g_deSw1ShortFlg = 0;
+	}
+
+	if(g_deSw2ShortFlg == 1)		// Change to Upper Setting List Selection
+	{
+		if(g_deSetSelStt < 5)
+			g_deSetSelStt++;
+		else
+			g_deSetSelStt = 5;
+		g_deSw2ShortFlg = 0;
+	}
+
+	if(g_deSw3ShortFlg == 1)		// Change to Set Details Screen
+	{
+		switch(g_deSetSelStt)
+		{
+			case 1 :	// Load Alarm Reference Data
+				g_deSetAl003Num = g_deMainAl003Num;
+				g_deSetAl005Num = g_deMainAl005Num;
+				g_deSetAl010Num = g_deMainAl010Num;
+				g_deSetAl025Num = g_deMainAl025Num;
+				g_deSetAl050Num = g_deMainAl050Num;
+				g_deSetAl100Num = g_deMainAl100Num;
+
+				g_deSetAl003Num_k = g_deSetAl003Num;
+				g_deSetAl005Num_k = g_deSetAl005Num;
+				g_deSetAl010Num_k = g_deSetAl010Num;
+				g_deSetAl025Num_k = g_deSetAl025Num;
+				g_deSetAl050Num_k = g_deSetAl050Num;
+				g_deSetAl100Num_k = g_deSetAl100Num;
+
+				ConvertNum2AscDec(g_deSetAl003Num, g_arSetAl003Asc, 4);
+				ConvertNum2AscDec(g_deSetAl005Num, g_arSetAl005Asc, 4);
+				ConvertNum2AscDec(g_deSetAl010Num, g_arSetAl010Asc, 4);
+				ConvertNum2AscDec(g_deSetAl025Num, g_arSetAl025Asc, 4);
+				ConvertNum2AscDec(g_deSetAl050Num, g_arSetAl050Asc, 4);
+				ConvertNum2AscDec(g_deSetAl100Num, g_arSetAl100Asc, 4);
+				break;
+
+			case 2 :	// Load Date,Time Data(Date, Time, UpTime)
+				HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);
+				g_arSetDateNum[0] = sDate.Year;
+				g_arSetDateNum[1] = sDate.Month;
+				g_arSetDateNum[2] = sDate.Date;
+				HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+				g_arSetTimeNum[0] = sTime.Hours;
+				g_arSetTimeNum[1] = sTime.Minutes;
+				g_arSetTimeNum[2] = sTime.Seconds;
+
+				memcpy(g_arSetDateNum_k, g_arSetDateNum, 3);
+				memcpy(g_arSetTimeNum_k, g_arSetTimeNum, 3);
+
+				g_arSetDateAsc[0] = (g_arSetDateNum[0]/10)%10+'0';
+				g_arSetDateAsc[1] = g_arSetDateNum[0]%10+'0';
+				ConvertNum2AscDec(g_arSetDateNum[1], g_arSetDateAsc+3, 2);
+				ConvertNum2AscDec(g_arSetDateNum[2], g_arSetDateAsc+6, 2);
+				ConvertNum2AscDec(g_arSetTimeNum[0], g_arSetTimeAsc, 2);
+				ConvertNum2AscDec(g_arSetTimeNum[1], g_arSetTimeAsc+3, 2);
+				ConvertNum2AscDec(g_arSetTimeNum[2], g_arSetTimeAsc+6, 2);
+				break;
+
+			case 3 :	// Load Mode Data(Alarm On/off, Network, Simple Moving Average Sample)
+				g_deSetModeCtrlNum = g_deMainModeIoNum;
+				g_deSetModeNetNum = g_deMainModeNetNum;
+				g_deSetModeSmaNum = g_deMainModeSmaNum;
+
+				g_deSetModeCtrlNum_k = g_deSetModeCtrlNum;
+				g_deSetModeNetNum_k = g_deSetModeNetNum;
+				g_deSetModeSmaNum_k = g_deSetModeSmaNum;
+				break;
+
+			case 4 :	// Load Network Data(UserIp, UserSubnetMask, UserGateway, UserPort, UserMac, ServerIp, ServerPort)
+				memcpy(g_arSetModIpNum, &netif_default->ip_addr, 4);
+				memcpy(g_arSetModSubNum, &netif_default->netmask, 4);
+				memcpy(g_arSetModGwNum, &netif_default->gw, 4);
+				memcpy(g_arSetModMacNum, netif_default->hwaddr, 6);
+				memcpy(&g_deSetModPortNum, &g_deEthModPort, 2);
+//				memcpy(&g_deSetDestIpNum, &netif_default->ip_addr, 2);
+//				memcpy(&g_deSetDestPortNum, &g_deEthServerPort, 2);
+
+				memcpy(g_arSetModIpNum_k, g_arSetModIpNum, 4);
+				memcpy(g_arSetModSubNum_k, g_arSetModSubNum, 4);
+				memcpy(g_arSetModGwNum_k, g_arSetModGwNum, 4);
+				memcpy(g_arSetModMacNum_k, g_arSetModMacNum, 6);
+				memcpy(&g_deSetModPortNum_k, &g_deSetModPortNum, 2);
+//				memcpy(&g_deSetDestIpNum_k, &g_deSetDestIpNum, 2);
+//				memcpy(&g_deSetDestPortNum_k, &g_deSetDestPortNum, 2);
+
+				ConvertNum2AscDec(g_arSetModIpNum[0], g_arSetModIpAsc, 3);
+				ConvertNum2AscDec(g_arSetModIpNum[1], g_arSetModIpAsc+4, 3);
+				ConvertNum2AscDec(g_arSetModIpNum[2], g_arSetModIpAsc+8, 3);
+				ConvertNum2AscDec(g_arSetModIpNum[3], g_arSetModIpAsc+12, 3);
+				ConvertNum2AscDec(g_arSetModSubNum[0], g_arSetModSubAsc, 3);
+				ConvertNum2AscDec(g_arSetModSubNum[1], g_arSetModSubAsc+4, 3);
+				ConvertNum2AscDec(g_arSetModSubNum[2], g_arSetModSubAsc+8, 3);
+				ConvertNum2AscDec(g_arSetModSubNum[3], g_arSetModSubAsc+12, 3);
+				ConvertNum2AscDec(g_arSetModGwNum[0], g_arSetModGwAsc, 3);
+				ConvertNum2AscDec(g_arSetModGwNum[1], g_arSetModGwAsc+4, 3);
+				ConvertNum2AscDec(g_arSetModGwNum[2], g_arSetModGwAsc+8, 3);
+				ConvertNum2AscDec(g_arSetModGwNum[3], g_arSetModGwAsc+12, 3);
+				ConvertNum2AscHex(g_arSetModMacNum[0], g_arSetModMacAsc, 2);
+				ConvertNum2AscHex(g_arSetModMacNum[1], g_arSetModMacAsc+3, 2);
+				ConvertNum2AscHex(g_arSetModMacNum[2], g_arSetModMacAsc+6, 2);
+				ConvertNum2AscHex(g_arSetModMacNum[3], g_arSetModMacAsc+9, 2);
+				ConvertNum2AscHex(g_arSetModMacNum[4], g_arSetModMacAsc+12, 2);
+				ConvertNum2AscHex(g_arSetModMacNum[5], g_arSetModMacAsc+15, 2);
+				break;
+
+			case 5 :	// Load Sound Data
+				break;
+				
+			default :
+				break;
+		}
+
+		g_deBkgdStt = DETAILS_STATE;
+		g_deSw3ShortFlg = 0;
+	}
+
+	if(g_deSw4LongFlg == 1)			// Change to Main Screen
+	{
+		g_deBkgdStt = MAIN_STATE;
+		g_deMainSelStt = PM0_5_SEL;
+		g_deSw4LongFlg = 0;
+	}
+}
+
+void LCD_DetailsAlarmStatus(void)
+{
+	if(g_deSw1ShortFlg == 1)		// Change to Lower Details List Selection
+	{
+		if(g_deChSelStt == 0)		// if Character is  Unselected,
+		{
+			if(g_deDetSelStt == 0)	// if Detail(0.3um, 0.5um, 1.0um, 2.5um, 5.0um, 10.um) is Unselected,
+				g_deDetSelStt = 6;
+			else
+				g_deDetSelStt--;
+		}
+		else						// if Character is Selected
+		{
+			switch(g_deDetSelStt)
+			{
+				case 1 :						// Selected 0.3um
+					if(g_deSetAl003Num > g_arSetAlMin[g_deChSelStt])
+						g_deSetAl003Num -= g_arSetAlSum[g_deChSelStt];
+					else
+						g_deSetAl003Num = 0;
+					ConvertNum2AscDec(g_deSetAl003Num, g_arSetAl003Asc, 4);
+					break;
+				case 2 :						// Selected 0.5um
+					if(g_deSetAl005Num > g_arSetAlMin[g_deChSelStt])
+						g_deSetAl005Num -= g_arSetAlSum[g_deChSelStt];
+					else
+						g_deSetAl005Num = 0;
+					ConvertNum2AscDec(g_deSetAl005Num, g_arSetAl005Asc, 4);
+					break;
+				case 3 :						// Selected 1.0um
+					if(g_deSetAl010Num > g_arSetAlMin[g_deChSelStt])
+						g_deSetAl010Num -= g_arSetAlSum[g_deChSelStt];
+					else
+						g_deSetAl010Num = 0;
+					ConvertNum2AscDec(g_deSetAl010Num, g_arSetAl010Asc, 4);
+					break;
+				case 4 :						// Selected 2.5um
+					if(g_deSetAl025Num > g_arSetAlMin[g_deChSelStt])
+						g_deSetAl025Num -= g_arSetAlSum[g_deChSelStt];
+					else
+						g_deSetAl025Num = 0;
+					ConvertNum2AscDec(g_deSetAl025Num, g_arSetAl025Asc, 4);
+					break;
+				case 5 :						// Selected 5.0um
+					if(g_deSetAl050Num > g_arSetAlMin[g_deChSelStt])
+						g_deSetAl050Num -= g_arSetAlSum[g_deChSelStt];
+					else
+						g_deSetAl050Num = 0;
+					ConvertNum2AscDec(g_deSetAl050Num, g_arSetAl050Asc, 4);
+					break;
+				case 6 :						// Selected  10um
+					if(g_deSetAl100Num > g_arSetAlMin[g_deChSelStt])
+						g_deSetAl100Num -= g_arSetAlSum[g_deChSelStt];
+					else
+						g_deSetAl100Num = 0;
+					ConvertNum2AscDec(g_deSetAl100Num, g_arSetAl100Asc, 4);
+					break;
+				default :
+					break;
+			}
+		}
+		g_deSw1ShortFlg = 0;
+	}
+
+	if(g_deSw2ShortFlg == 1)		// Change to Upper Details List Selection
+	{
+		if(g_deChSelStt == 0)		// if Character is  Unselected,
+		{
+			if(g_deDetSelStt == 6)	// if Detail(0.3um, 0.5um, 1.0um, 2.5um, 5.0um, 10.um) is Unselected,
+				g_deDetSelStt = 0;
+			else
+				g_deDetSelStt++;
+		}
+		else						// if Character is Selected
+		{
+			switch(g_deDetSelStt)
+			{
+				case 1 :						// Selected 0.3um
+					if(g_deSetAl003Num < g_arSetAlMax[g_deChSelStt])
+						g_deSetAl003Num += g_arSetAlSum[g_deChSelStt];
+					else
+						g_deSetAl003Num = 9999;
+					ConvertNum2AscDec(g_deSetAl003Num, g_arSetAl003Asc, 4);
+					break;
+				case 2 :						// Selected 0.5um
+					if(g_deSetAl005Num < g_arSetAlMax[g_deChSelStt])
+						g_deSetAl005Num += g_arSetAlSum[g_deChSelStt];
+					else
+						g_deSetAl005Num = 9999;
+					ConvertNum2AscDec(g_deSetAl005Num, g_arSetAl005Asc, 4);
+					break;
+				case 3 :						// Selected 1.0um
+					if(g_deSetAl010Num < g_arSetAlMax[g_deChSelStt])
+						g_deSetAl010Num += g_arSetAlSum[g_deChSelStt];
+					else
+						g_deSetAl010Num = 9999;
+					ConvertNum2AscDec(g_deSetAl010Num, g_arSetAl010Asc, 4);
+					break;
+				case 4 :						// Selected 2.5um
+					if(g_deSetAl025Num < g_arSetAlMax[g_deChSelStt])
+						g_deSetAl025Num += g_arSetAlSum[g_deChSelStt];
+					else
+						g_deSetAl025Num = 9999;
+					ConvertNum2AscDec(g_deSetAl025Num, g_arSetAl025Asc, 4);
+					break;
+				case 5 :						// Selected 5.0um
+					if(g_deSetAl050Num < g_arSetAlMax[g_deChSelStt])
+						g_deSetAl050Num += g_arSetAlSum[g_deChSelStt];
+					else
+						g_deSetAl050Num = 9999;
+					ConvertNum2AscDec(g_deSetAl050Num, g_arSetAl050Asc, 4);
+					break;
+				case 6 :						// Selected  10um
+					if(g_deSetAl100Num < g_arSetAlMax[g_deChSelStt])
+						g_deSetAl100Num += g_arSetAlSum[g_deChSelStt];
+					else
+						g_deSetAl100Num = 9999;
+					ConvertNum2AscDec(g_deSetAl100Num, g_arSetAl100Asc, 4);
+					break;
+				default :
+					break;
+			}
+		}
+		g_deSw2ShortFlg = 0;
+	}
+
+	if(g_deSw3ShortFlg == 1)		// Change to Details List Select Screen
+	{
+		if(g_deDetSelStt == 0)		// if Select 'SAVE' Details
+		{
+			// Save
+			g_deMainAl003Num = g_deSetAl003Num;
+			g_deMainAl005Num = g_deSetAl005Num;
+			g_deMainAl010Num = g_deSetAl010Num;
+			g_deMainAl025Num = g_deSetAl025Num;
+			g_deMainAl050Num = g_deSetAl050Num;
+			g_deMainAl100Num = g_deSetAl100Num;
+			memcpy(g_arMainAl003Asc, g_arSetAl003Asc, 4);
+			memcpy(g_arMainAl005Asc, g_arSetAl005Asc, 4);
+			memcpy(g_arMainAl010Asc, g_arSetAl010Asc, 4);
+			memcpy(g_arMainAl025Asc, g_arSetAl025Asc, 4);
+			memcpy(g_arMainAl050Asc, g_arSetAl050Asc, 4);
+			memcpy(g_arMainAl100Asc, g_arSetAl100Asc, 4);
+			CPU_I2C.Alarm003 = g_deMainAl003Num;
+			CPU_I2C.Alarm005 = g_deMainAl005Num;
+			CPU_I2C.Alarm010 = g_deMainAl010Num;
+			CPU_I2C.Alarm025 = g_deMainAl025Num;
+			CPU_I2C.Alarm050 = g_deMainAl050Num;
+			CPU_I2C.Alarm100 = g_deMainAl100Num;
+
+			I2C_WRITE();
+			HAL_Delay(100);
+
+			g_deBkgdStt = SETTING_STATE;
+		}
+		else						// if Select Other Details
+		{
+			// variable character range : 13~16
+			if(g_deChSelStt == 0)
+			{
+				g_deChSelStt = 13;
+			}
+			else if(g_deChSelStt < 16)
+			{
+				g_deChSelStt++;
+			}
+			else
+			{
+				g_deChSelStt = 0;
+			}
+		}
+		g_deSw3ShortFlg = 0;
+	}
+	if(g_deSw4ShortFlg == 1)		// Change to Details List Select Screen
+	{
+		if(g_deChSelStt == 0)
+		{
+			g_deBkgdStt = SETTING_STATE;
+		}
+		else
+		{
+			g_deChSelStt = 0;
+		}
+		g_deSw4ShortFlg = 0;
+	}
+}
+void LCD_DetailsDatetimeStatus(void)
+{
+	if(g_deSw1ShortFlg == 1)		// Change to Lower Details List Selection
+	{
+		if(g_deChSelStt == 0)		// if Character is  Unselected,
+		{
+			if(g_deDetSelStt == 0)	// if Detail(0.3um, 0.5um, 1.0um, 2.5um, 5.0um, 10.um) is Unselected,
+				g_deDetSelStt = 5;
+			else
+			{
+				g_deDetSelStt--;
+				if((g_deDetSelStt == 2) || (g_deDetSelStt == 4))
+					g_deDetSelStt--;
+			}
+		}
+		else						// if Character is Selected
+		{
+			switch(g_deDetSelStt)
+			{
+				case 1 :						// Selected Date
+					if(g_arSetDateNum[(g_deChSelStt-4)/3] < g_arSetDateMax[g_deChSelStt])
+						g_arSetDateNum[(g_deChSelStt-4)/3] += g_arSetDateSum[g_deChSelStt];
+					else
+					{
+						switch(g_deChSelStt)
+						{
+							case 4 :
+							case 5 :
+								g_arSetDateNum[0] = g_arSetDateMax[5];
+								break;
+							case 7 :
+							case 8 :
+								g_arSetDateNum[1] = g_arSetDateMax[8];
+								break;
+							case 10 :
+							case 11 :
+								g_arSetDateNum[2] = g_arSetDateMax[11];
+								break;
+						}
+					}
+					switch(g_arSetDateNum[1])
+					{
+						case 1 :
+						case 3 :
+						case 5 :
+						case 7 :
+						case 8 :
+						case 10 :
+						case 12 :
+							g_arSetDateMax[10] = 22;
+							g_arSetDateMax[11] = 31;
+							break;
+						case 4 :
+						case 6 :
+						case 9 :
+						case 11 :
+							g_arSetDateMax[10] = 21;
+							g_arSetDateMax[11] = 30;
+							break;
+						case 2 :
+							if((g_arSetDateNum[0] % 4) == 0)
+							{
+								g_arSetDateMax[10] = 20;
+								g_arSetDateMax[11] = 29;
+							}
+							else
+							{
+								g_arSetDateMax[10] = 19;
+								g_arSetDateMax[11] = 28;
+							}
+							break;
+						default :
+							break;
+					}
+					g_arSetDateAsc[0] = (g_arSetDateNum[0]/10)%10+'0';
+					g_arSetDateAsc[1] = g_arSetDateNum[0]%10+'0';
+					ConvertNum2AscDec(g_arSetDateNum[1], g_arSetDateAsc+3, 2);
+					ConvertNum2AscDec(g_arSetDateNum[2], g_arSetDateAsc+6, 2);
+					break;
+				case 3 :						// Selected Time
+					if(g_arSetTimeNum[(g_deChSelStt-4)/3] < g_arSetTimeMax[g_deChSelStt])
+						g_arSetTimeNum[(g_deChSelStt-4)/3] += g_arSetTimeSum[g_deChSelStt];
+					else
+					{
+						switch(g_deChSelStt)
+						{
+							case 4 :
+							case 5 :
+								g_arSetTimeNum[0] = g_arSetTimeMax[5];
+								break;
+							case 7 :
+							case 8 :
+								g_arSetTimeNum[1] = g_arSetTimeMax[8];
+								break;
+							case 10 :
+							case 11 :
+								g_arSetTimeNum[2] = g_arSetTimeMax[11];
+								break;
+						}
+					}
+					ConvertNum2AscDec(g_arSetTimeNum[0], g_arSetTimeAsc, 2);
+					ConvertNum2AscDec(g_arSetTimeNum[1], g_arSetTimeAsc+3, 2);
+					ConvertNum2AscDec(g_arSetTimeNum[2], g_arSetTimeAsc+6, 2);
+					break;
+				case 5 :
+					break;
+				default :
+					break;
+			}
+		}
+
+
+
+
+//		switch(g_deDetSelStt)
+//		{
+//			case 0 :						// Unselected
+//				if(g_deChSelStt == 0)
+//				{
+//					g_deDetSelStt = 5;
+//				}
+//				break;
+//
+//			case 1 :						// Selected Date
+//				switch(g_deChSelStt)
+//				{
+//					case 0 :
+//						g_deDetSelStt = 0;
+//						break;
+//					case 1 :	// 00~99
+//						if(g_arSetDateNum[0] > 9)
+//						{
+//							g_arSetDateNum[0] -= 10;
+//						}
+//						else
+//						{
+//							g_arSetDateNum[0] = 0;
+//						}
+//						break;
+//					case 2 :	// 00~99
+//						if(g_arSetDateNum[0] > 1)
+//						{
+//							g_arSetDateNum[0]--;
+//						}
+//						else
+//						{
+//							g_arSetDateNum[0] = 0;
+//						}
+//						break;
+//					case 3 :	// 1~12
+//						if(g_arSetDateNum[1] > 10)
+//						{
+//							g_arSetDateNum[1] -= 10;
+//						}
+//						else
+//						{
+//							g_arSetDateNum[1] = 1;
+//						}
+//						break;
+//					case 4 :	// 1~12
+//						if(g_arSetDateNum[1] > 2)
+//						{
+//							g_arSetDateNum[1]--;
+//						}
+//						else
+//						{
+//							g_arSetDateNum[1] = 1;
+//						}
+//						break;
+//					case 5 :	// 1~31
+//						if(g_arSetDateNum[2] > 10)
+//						{
+//							g_arSetDateNum[2] -= 10;
+//						}
+//						else
+//						{
+//							g_arSetDateNum[2] = 1;
+//						}
+//						break;
+//					case 6 :	// 1~31
+//						if(g_arSetDateNum[2] > 2)
+//						{
+//							g_arSetDateNum[2]--;
+//						}
+//						else
+//						{
+//							g_arSetDateNum[2] = 1;
+//						}
+//						break;
+//					default :
+//						break;
+//				}
+//				g_arSetDateAsc[0] = (g_arSetDateNum[0]/10)%10+'0';
+//				g_arSetDateAsc[1] = g_arSetDateNum[0]%10+'0';
+//				ConvertNum2AscDec(g_arSetDateNum[1], g_arSetDateAsc+3, 2);
+//				ConvertNum2AscDec(g_arSetDateNum[2], g_arSetDateAsc+6, 2);
+//				break;
+//
+//			case 3 :						// Selected Time
+//				switch(g_deChSelStt)
+//				{
+//					case 0 :
+//						g_deDetSelStt = 1;
+//						break;
+//					case 1 :	// 0~23
+//						if(g_arSetTimeNum[0] > 9)
+//						{
+//							g_arSetTimeNum[0] -= 10;
+//						}
+//						else
+//						{
+//							g_arSetTimeNum[0] = 0;
+//						}
+//						break;
+//					case 2 :	// 0~23
+//						if(g_arSetTimeNum[0] > 1)
+//						{
+//							g_arSetTimeNum[0]--;
+//						}
+//						else
+//						{
+//							g_arSetTimeNum[0] = 0;
+//						}
+//						break;
+//					case 3 :	// 0~59
+//						if(g_arSetTimeNum[1] > 9)
+//						{
+//							g_arSetTimeNum[1] -= 10;
+//						}
+//						else
+//						{
+//							g_arSetTimeNum[1] = 0;
+//						}
+//						break;
+//					case 4 :	// 0~59
+//						if(g_arSetTimeNum[1] > 1)
+//						{
+//							g_arSetTimeNum[1]--;
+//						}
+//						else
+//						{
+//							g_arSetTimeNum[1] = 0;
+//						}
+//						break;
+//					case 5 :	// 0~59
+//						if(g_arSetTimeNum[2] > 9)
+//						{
+//							g_arSetTimeNum[2] -= 10;
+//						}
+//						else
+//						{
+//							g_arSetTimeNum[2] = 0;
+//						}
+//						break;
+//					case 6 :	// 0~59
+//						if(g_arSetTimeNum[2] > 1)
+//						{
+//							g_arSetTimeNum[2]--;
+//						}
+//						else
+//						{
+//							g_arSetTimeNum[2] = 0;
+//						}
+//						break;
+//					default :
+//						break;
+//				}
+//				ConvertNum2AscDec(g_arSetTimeNum[0], g_arSetTimeAsc, 2);
+//				ConvertNum2AscDec(g_arSetTimeNum[1], g_arSetTimeAsc+3, 2);
+//				ConvertNum2AscDec(g_arSetTimeNum[2], g_arSetTimeAsc+6, 2);
+//				break;
+//			case 5 :
+//				switch(g_deChSelStt)
+//				{
+//					case 0 :
+//						g_deDetSelStt = 3;
+//						break;
+//					default :
+//						break;
+//				}
+//				break;
+//			default :
+//				break;
+//		}
+		g_deSw1ShortFlg = 0;
+	}
+
+	if(g_deSw2ShortFlg == 1)		// Change to Upper Details List Selection
+	{
+		if(g_deChSelStt == 0)		// if Character is  Unselected,
+		{
+			if(g_deDetSelStt == 5)	// if Detail(0.3um, 0.5um, 1.0um, 2.5um, 5.0um, 10.um) is Unselected,
+				g_deDetSelStt = 0;
+			else
+			{
+				g_deDetSelStt++;
+				if((g_deDetSelStt == 2) || (g_deDetSelStt == 4))
+					g_deDetSelStt++;
+			}
+		}
+		else						// if Character is Selected
+		{
+			switch(g_deDetSelStt)
+			{
+				case 1 :						// Selected Date
+					if(g_arSetDateNum[(g_deChSelStt-4)/3] > g_arSetDateMin[g_deChSelStt])
+						g_arSetDateNum[(g_deChSelStt-4)/3] -= g_arSetDateSum[g_deChSelStt];
+					else
+					{
+						switch(g_deChSelStt)
+						{
+							case 4 :
+							case 5 :
+								g_arSetDateNum[0] = g_arSetDateMin[5];
+								break;
+							case 7 :
+							case 8 :
+								g_arSetDateNum[1] = g_arSetDateMin[8];
+								break;
+							case 10 :
+							case 11 :
+								g_arSetDateNum[2] = g_arSetDateMin[11];
+								break;
+						}
+					}
+					switch(g_arSetDateNum[1])
+					{
+						case 1 :
+						case 3 :
+						case 5 :
+						case 7 :
+						case 8 :
+						case 10 :
+						case 12 :
+							g_arSetDateMax[10] = 22;
+							g_arSetDateMax[11] = 31;
+							break;
+						case 4 :
+						case 6 :
+						case 9 :
+						case 11 :
+							g_arSetDateMax[10] = 21;
+							g_arSetDateMax[11] = 30;
+							break;
+						case 2 :
+							if((g_arSetDateNum[0] % 4) == 0)
+							{
+								g_arSetDateMax[10] = 20;
+								g_arSetDateMax[11] = 29;
+							}
+							else
+							{
+								g_arSetDateMax[10] = 19;
+								g_arSetDateMax[11] = 28;
+							}
+							break;
+						default :
+							break;
+					}
+					g_arSetDateAsc[0] = (g_arSetDateNum[0]/10)%10+'0';
+					g_arSetDateAsc[1] = g_arSetDateNum[0]%10+'0';
+					ConvertNum2AscDec(g_arSetDateNum[1], g_arSetDateAsc+3, 2);
+					ConvertNum2AscDec(g_arSetDateNum[2], g_arSetDateAsc+6, 2);
+					break;
+				case 3 :						// Selected Time
+					if(g_arSetTimeNum[(g_deChSelStt-4)/3] > g_arSetTimeMin[g_deChSelStt])
+						g_arSetTimeNum[(g_deChSelStt-4)/3] -= g_arSetTimeSum[g_deChSelStt];
+					else
+					{
+						switch(g_deChSelStt)
+						{
+							case 4 :
+							case 5 :
+								g_arSetTimeNum[0] = g_arSetTimeMin[5];
+								break;
+							case 7 :
+							case 8 :
+								g_arSetTimeNum[1] = g_arSetTimeMin[8];
+								break;
+							case 10 :
+							case 11 :
+								g_arSetTimeNum[2] = g_arSetTimeMin[11];
+								break;
+						}
+					}
+					ConvertNum2AscDec(g_arSetTimeNum[0], g_arSetTimeAsc, 2);
+					ConvertNum2AscDec(g_arSetTimeNum[1], g_arSetTimeAsc+3, 2);
+					ConvertNum2AscDec(g_arSetTimeNum[2], g_arSetTimeAsc+6, 2);
+					break;
+				case 5 :
+					break;
+				default :
+					break;
+			}
+		}
+//		switch(g_deDetSelStt)
+//		{
+//			case 0 :						// Unselected
+//				if(g_deChSelStt == 0)
+//				{
+//					g_deDetSelStt = 1;
+//				}
+//				break;
+//
+//			case 1 :						// Selected Date
+//				switch(g_deChSelStt)
+//				{
+//					case 0 :
+//						g_deDetSelStt = 3;
+//						break;
+//					case 1 :	// 00~99
+//						if(g_arSetDateNum[0] < 90)
+//						{
+//							g_arSetDateNum[0] += 10;
+//						}
+//						else
+//						{
+//							g_arSetDateNum[0] = 99;
+//						}
+//						break;
+//					case 2 :	// 00~99
+//						if(g_arSetDateNum[0] < 99)
+//						{
+//							g_arSetDateNum[0]++;
+//						}
+//						else
+//						{
+//							g_arSetDateNum[0] = 99;
+//						}
+//						break;
+//					case 3 :	// 1~12
+//						if(g_arSetDateNum[1] < 3)
+//						{
+//							g_arSetDateNum[1] += 10;
+//						}
+//						else
+//						{
+//							g_arSetDateNum[1] = 12;
+//						}
+//						break;
+//					case 4 :	// 1~12
+//						if(g_arSetDateNum[1] < 12)
+//						{
+//							g_arSetDateNum[1]++;
+//						}
+//						else
+//						{
+//							g_arSetDateNum[1] = 12;
+//						}
+//						break;
+//					case 5 :	// 1~31
+//						switch(g_arSetDateNum[1])
+//						{
+//							case 1 :	// ~31
+//							case 3 :
+//							case 5 :
+//							case 7 :
+//							case 8 :
+//							case 10 :
+//							case 12 :
+//								if(g_arSetDateNum[2] < 22)
+//								{
+//									g_arSetDateNum[2] += 10;
+//								}
+//								else
+//								{
+//									g_arSetDateNum[2] = 31;
+//								}
+//								break;
+//							case 4 :	// ~30
+//							case 6 :
+//							case 9 :
+//							case 11 :
+//								if(g_arSetDateNum[2] < 21)
+//								{
+//									g_arSetDateNum[2] += 10;
+//								}
+//								else
+//								{
+//									g_arSetDateNum[2] = 30;
+//								}
+//								break;
+//							case 2 :	// ~29, ~28
+//								if((g_arSetDateNum[0]%4) == 0)		// leap year
+//								{
+//									if(g_arSetDateNum[2] < 20)
+//									{
+//										g_arSetDateNum[2] += 10;
+//									}
+//									else
+//									{
+//										g_arSetDateNum[2] = 29;
+//									}
+//								}
+//								else							// common year
+//								{
+//									if(g_arSetDateNum[2] < 19)
+//									{
+//										g_arSetDateNum[2] += 10;
+//									}
+//									else
+//									{
+//										g_arSetDateNum[2] = 28;
+//									}
+//								}
+//							default :
+//								break;
+//						}
+//						break;
+//					case 6 :	// 1~31
+//						switch(g_arSetDateNum[1])
+//						{
+//							case 1 :	// ~31
+//							case 3 :
+//							case 5 :
+//							case 7 :
+//							case 8 :
+//							case 10 :
+//							case 12 :
+//								if(g_arSetDateNum[2] < 31)
+//								{
+//									g_arSetDateNum[2]++;
+//								}
+//								else
+//								{
+//									g_arSetDateNum[2] = 31;
+//								}
+//								break;
+//							case 4 :	// ~30
+//							case 6 :
+//							case 9 :
+//							case 11 :
+//								if(g_arSetDateNum[2] < 30)
+//								{
+//									g_arSetDateNum[2]++;
+//								}
+//								else
+//								{
+//									g_arSetDateNum[2] = 30;
+//								}
+//								break;
+//							case 2 :	// ~29, ~28
+//								if((g_arSetDateNum[0]%4) == 0)		// leap year
+//								{
+//									if(g_arSetDateNum[2] < 29)
+//									{
+//										g_arSetDateNum[2]++;
+//									}
+//									else
+//									{
+//										g_arSetDateNum[2] = 29;
+//									}
+//								}
+//								else 							// common year
+//								{
+//									if(g_arSetDateNum[2] < 28)
+//									{
+//										g_arSetDateNum[2]++;
+//									}
+//									else
+//									{
+//										g_arSetDateNum[2] = 28;
+//									}
+//								}
+//							default :
+//								break;
+//						}
+//						break;
+//					default :
+//						break;
+//				}
+//				g_arSetDateAsc[0] = (g_arSetDateNum[0]/10)%10+'0';
+//				g_arSetDateAsc[1] = g_arSetDateNum[0]%10+'0';
+//				ConvertNum2AscDec(g_arSetDateNum[1], g_arSetDateAsc+3, 2);
+//				ConvertNum2AscDec(g_arSetDateNum[2], g_arSetDateAsc+6, 2);
+//				break;
+//
+//			case 3 :						// Selected Time
+//				switch(g_deChSelStt)
+//				{
+//					case 0 :
+//						g_deDetSelStt = 5;
+//						break;
+//					case 1 :	// 0~23
+//						if(g_arSetTimeNum[0] < 14)
+//						{
+//							g_arSetTimeNum[0] += 10;
+//						}
+//						else
+//						{
+//							g_arSetTimeNum[0] = 23;
+//						}
+//						break;
+//					case 2 :	// 0~23
+//						if(g_arSetTimeNum[0] < 23)
+//						{
+//							g_arSetTimeNum[0]++;
+//						}
+//						else
+//						{
+//							g_arSetTimeNum[0] = 23;
+//						}
+//						break;
+//					case 3 :	// 0~59
+//						if(g_arSetTimeNum[1] < 50)
+//						{
+//							g_arSetTimeNum[1] += 10;
+//						}
+//						else
+//						{
+//							g_arSetTimeNum[1] = 59;
+//						}
+//						break;
+//					case 4 :	// 0~59
+//						if(g_arSetTimeNum[1] < 59)
+//						{
+//							g_arSetTimeNum[1]++;
+//						}
+//						else
+//						{
+//							g_arSetTimeNum[1] = 59;
+//						}
+//						break;
+//					case 5 :	// 0~59
+//						if(g_arSetTimeNum[2] < 50)
+//						{
+//							g_arSetTimeNum[2] += 10;
+//						}
+//						else
+//						{
+//							g_arSetTimeNum[2] = 59;
+//						}
+//						break;
+//					case 6 :	// 0~59
+//						if(g_arSetTimeNum[2] < 59)
+//						{
+//							g_arSetTimeNum[2]++;
+//						}
+//						else
+//						{
+//							g_arSetTimeNum[2] = 59;
+//						}
+//						break;
+//					default :
+//						break;
+//				}
+//				ConvertNum2AscDec(g_arSetTimeNum[0], g_arSetTimeAsc, 2);
+//				ConvertNum2AscDec(g_arSetTimeNum[1], g_arSetTimeAsc+3, 2);
+//				ConvertNum2AscDec(g_arSetTimeNum[2], g_arSetTimeAsc+6, 2);
+//				break;
+//			case 5 :
+//				switch(g_deChSelStt)
+//				{
+//					case 0 :
+//						g_deDetSelStt = 0;
+//						break;
+//					default :
+//						break;
+//				}
+//				break;
+//			default :
+//				break;
+//		}
+		g_deSw2ShortFlg = 0;
+	}
+
+	if(g_deSw3ShortFlg == 1)		// Change to Details List Select Screen
+	{
+		if(g_deDetSelStt == 0)		// if Select 'SAVE' Details
+		{
+			// Save
+			sDate.Year = g_arSetDateNum[0];
+			sDate.Month = g_arSetDateNum[1];
+			sDate.Date = g_arSetDateNum[2];
+			HAL_RTC_SetDate(&hrtc,&sDate,RTC_FORMAT_BIN);
+			sTime.Hours = g_arSetTimeNum[0];
+			sTime.Minutes = g_arSetTimeNum[1];
+			sTime.Seconds = g_arSetTimeNum[2];
+			HAL_RTC_SetTime(&hrtc,&sTime,RTC_FORMAT_BIN);
+
+			g_deBkgdStt = SETTING_STATE;
+		}
+		else						// if Select Other Details
+		{
+			if(g_deChSelStt == 0)
+			{
+				g_deChSelStt = 4;
+			}
+			else if(g_deChSelStt < 11)
+			{
+				g_deChSelStt++;
+				if((g_deChSelStt == 6) || (g_deChSelStt == 9))
+					g_deChSelStt++;
+			}
+			else
+			{
+				g_deChSelStt = 0;
+			}
+		}
+		g_deSw3ShortFlg = 0;
+	}
+	if(g_deSw4ShortFlg == 1)		// Change to Details List Select Screen
+	{
+		if(g_deChSelStt == 0)
+		{
+			g_deBkgdStt = SETTING_STATE;
+		}
+		else
+		{
+			g_deChSelStt = 0;
+		}
+		g_deSw4ShortFlg = 0;
+	}
+}
+void LCD_DetailsModeStatus(void)
+{
+	if(g_deSw1ShortFlg == 1)		// Change to Lower Details List Selection
+	{
+		if(g_deChSelStt == 0)		// if Character is  Unselected,
+		{
+			if(g_deDetSelStt == 0)	// if Detail(Alarm Onoff, Newwork, Simple Moving Average) is Unselected,
+				g_deDetSelStt = 3;
+			else
+				g_deDetSelStt--;
+		}
+		else						// if Character is Selected
+		{
+			switch(g_deDetSelStt)
+			{
+				case 1 :						// Selected External Input Output
+					g_deSetModeIoNum = 0;
+					break;
+				case 2 :						// Selected Network
+					break;
+				case 3 :						// Selected SmaSample
+					break;
+				default :
+					break;
+			}
+		}
+		g_deSw1ShortFlg = 0;
+	}
+
+	if(g_deSw2ShortFlg == 1)		// Change to Upper Details List Selection
+	{
+		if(g_deChSelStt == 0)		// if Character is  Unselected,
+		{
+			if(g_deDetSelStt == 3)	// if Detail(Alarm Onoff, Newwork, Simple Moving Average) is Unselected,
+				g_deDetSelStt = 0;
+			else
+				g_deDetSelStt++;
+		}
+		else						// if Character is Selected
+		{
+			switch(g_deDetSelStt)
+			{
+				case 1 :						// Selected Date
+
+					break;
+				default :
+					break;
+			}
+		}
+		g_deSw2ShortFlg = 0;
+	}
+
+	if(g_deSw3ShortFlg == 1)		// Change to Details List Select Screen
+	{
+		if(g_deDetSelStt == 0)		// if Select 'SAVE' Details
+		{
+			// Save
+			g_deBkgdStt = SETTING_STATE;
+		}
+		else						// if Select Other Details
+		{
+			if(g_deChSelStt < 4)
+			{
+				g_deChSelStt++;
+			}
+			else
+			{
+				g_deChSelStt = 0;
+			}
+		}
+		g_deSw3ShortFlg = 0;
+	}
+	if(g_deSw4ShortFlg == 1)		// Change to Details List Select Screen
+	{
+		if(g_deChSelStt == 0)
+		{
+			g_deBkgdStt = SETTING_STATE;
+		}
+		else
+		{
+			g_deChSelStt = 0;
+		}
+		g_deSw4ShortFlg = 0;
+	}
+}
+void LCD_DetailsNetworkStatus(void)
+{
+	if(g_deSw1ShortFlg == 1)		// Change to Lower Details List Selection
+	{
+		if(g_deChSelStt == 0)
+		{
+			if((g_deMainModeNetNum & 2) == 2)	// if Include Client Mode, 2 Pages
+			{
+				if(g_deDetSelStt == 0)
+					g_deDetSelStt = 9;
+				else if(g_deDetSelStt == 8)
+					g_deDetSelStt = 6;
+				else if(g_deDetSelStt == 2)
+					g_deDetSelStt = 0;
+				else
+					g_deDetSelStt --;
+			}
+			else								// if Exclude Client Mode, 1 Page
+			{
+				if(g_deDetSelStt == 0)
+					g_deDetSelStt = 6;
+				else if(g_deDetSelStt == 2)
+					g_deDetSelStt = 0;
+				else
+					g_deDetSelStt --;
+			}
+		}
+		else
+		{
+			switch(g_deDetSelStt)
+			{
+				case 2 :						// Selected SensorIp
+					if(g_arSetModIpNum[(g_deChSelStt-9)/4] > g_arSetAddrMin[g_deChSelStt])
+						g_arSetModIpNum[(g_deChSelStt-9)/4] -= g_arSetAddrSum[g_deChSelStt];
+					else
+						g_arSetModIpNum[(g_deChSelStt-9)/4] = 0;
+					ConvertNum2AscDec(g_arSetModIpNum[0], g_arSetModIpAsc, 3);
+					ConvertNum2AscDec(g_arSetModIpNum[1], g_arSetModIpAsc+4, 3);
+					ConvertNum2AscDec(g_arSetModIpNum[2], g_arSetModIpAsc+8, 3);
+					ConvertNum2AscDec(g_arSetModIpNum[3], g_arSetModIpAsc+12, 3);
+					break;
+				case 3 :						// Selected SensorSubnet
+					if(g_arSetModSubNum[(g_deChSelStt-9)/4] > g_arSetAddrMin[g_deChSelStt])
+						g_arSetModSubNum[(g_deChSelStt-9)/4] -= g_arSetAddrSum[g_deChSelStt];
+					else
+						g_arSetModSubNum[(g_deChSelStt-9)/4] = 0;
+					ConvertNum2AscDec(g_arSetModSubNum[0], g_arSetModSubAsc, 3);
+					ConvertNum2AscDec(g_arSetModSubNum[1], g_arSetModSubAsc+4, 3);
+					ConvertNum2AscDec(g_arSetModSubNum[2], g_arSetModSubAsc+8, 3);
+					ConvertNum2AscDec(g_arSetModSubNum[3], g_arSetModSubAsc+12, 3);
+					break;
+				case 4 :						// Selected SensorGateway
+					if(g_arSetModGwNum[(g_deChSelStt-9)/4] > g_arSetAddrMin[g_deChSelStt])
+						g_arSetModGwNum[(g_deChSelStt-9)/4] -= g_arSetAddrSum[g_deChSelStt];
+					else
+						g_arSetModGwNum[(g_deChSelStt-9)/4] = 0;
+					ConvertNum2AscDec(g_arSetModGwNum[0], g_arSetModGwAsc, 3);
+					ConvertNum2AscDec(g_arSetModGwNum[1], g_arSetModGwAsc+4, 3);
+					ConvertNum2AscDec(g_arSetModGwNum[2], g_arSetModGwAsc+8, 3);
+					ConvertNum2AscDec(g_arSetModGwNum[3], g_arSetModGwAsc+12, 3);
+					break;
+				case 5 :						// Selected SensorPort
+					if(g_deSetModPortNum > g_arSetPortMin[g_deChSelStt])
+						g_deSetModPortNum -= g_arSetPortSum[g_deChSelStt];
+					else
+						g_deSetModPortNum = 0;
+					ConvertNum2AscDec(g_deSetModPortNum, g_arSetModPortAsc, 5);
+					break;
+				case 6 :						// Selected ModMac
+					if(g_arSetModMacNum[(g_deChSelStt-9)/3] < g_arSetMacMax[g_deChSelStt])
+						g_arSetModMacNum[(g_deChSelStt-9)/3] += g_arSetMacSum[g_deChSelStt];
+					else
+						g_arSetModMacNum[(g_deChSelStt-9)/3] = 255;
+					ConvertNum2AscHex(g_arSetModMacNum[0], g_arSetModMacAsc, 2);
+					ConvertNum2AscHex(g_arSetModMacNum[1], g_arSetModMacAsc+3, 2);
+					ConvertNum2AscHex(g_arSetModMacNum[2], g_arSetModMacAsc+6, 2);
+					ConvertNum2AscHex(g_arSetModMacNum[3], g_arSetModMacAsc+9, 2);
+					ConvertNum2AscHex(g_arSetModMacNum[4], g_arSetModMacAsc+12, 2);
+					ConvertNum2AscHex(g_arSetModMacNum[5], g_arSetModMacAsc+15, 2);
+					break;
+				case 8 :						// Selected ServerIp
+					if(g_arSetDestIpNum[(g_deChSelStt-9)/4] > g_arSetAddrMin[g_deChSelStt])
+						g_arSetDestIpNum[(g_deChSelStt-9)/4] -= g_arSetAddrSum[g_deChSelStt];
+					else
+						g_arSetDestIpNum[(g_deChSelStt-9)/4] = 0;
+					ConvertNum2AscDec(g_arSetDestIpNum[0], g_arSetDestIpAsc, 3);
+					ConvertNum2AscDec(g_arSetDestIpNum[1], g_arSetDestIpAsc+4, 3);
+					ConvertNum2AscDec(g_arSetDestIpNum[2], g_arSetDestIpAsc+8, 3);
+					ConvertNum2AscDec(g_arSetDestIpNum[3], g_arSetDestIpAsc+12, 3);
+					break;
+				case 9 :						// Selected ServerPort
+					if(g_deSetDestPortNum > g_arSetPortMin[g_deChSelStt])
+						g_deSetDestPortNum -= g_arSetPortSum[g_deChSelStt];
+					else
+						g_deSetDestPortNum = 0;
+					ConvertNum2AscDec(g_deSetDestPortNum, g_arSetDestPortAsc, 5);
+					break;
+				default :
+					break;
+			}
+		}
+		g_deSw1ShortFlg = 0;
+	}
+
+	if(g_deSw2ShortFlg == 1)		// Change to Upper Details List Selection
+	{
+		if(g_deChSelStt == 0)
+		{
+			if((g_deMainModeNetNum & 2) == 2)	// if Include Client Mode, 2 Pages
+			{
+				if(g_deDetSelStt == 9)
+					g_deDetSelStt = 0;
+				else if(g_deDetSelStt == 0)
+					g_deDetSelStt = 2;
+				else if(g_deDetSelStt == 6)
+					g_deDetSelStt = 8;
+				else
+					g_deDetSelStt ++;
+			}
+			else								// if Exclude Client Mode, 1 Page
+			{
+				if(g_deDetSelStt == 6)
+					g_deDetSelStt = 0;
+				else if(g_deDetSelStt == 0)
+					g_deDetSelStt = 2;
+				else
+					g_deDetSelStt ++;
+			}
+		}
+		else
+		{
+			switch(g_deDetSelStt)
+			{
+				case 2 :						// Selected ModIp
+					if(g_arSetModIpNum[(g_deChSelStt-9)/4] < g_arSetAddrMax[g_deChSelStt])
+						g_arSetModIpNum[(g_deChSelStt-9)/4] += g_arSetAddrSum[g_deChSelStt];
+					else
+						g_arSetModIpNum[(g_deChSelStt-9)/4] = 255;
+					ConvertNum2AscDec(g_arSetModIpNum[0], g_arSetModIpAsc, 3);
+					ConvertNum2AscDec(g_arSetModIpNum[1], g_arSetModIpAsc+4, 3);
+					ConvertNum2AscDec(g_arSetModIpNum[2], g_arSetModIpAsc+8, 3);
+					ConvertNum2AscDec(g_arSetModIpNum[3], g_arSetModIpAsc+12, 3);
+					break;
+				case 3 :						// Selected ModSubnet
+					if(g_arSetModSubNum[(g_deChSelStt-9)/4] < g_arSetAddrMax[g_deChSelStt])
+						g_arSetModSubNum[(g_deChSelStt-9)/4] += g_arSetAddrSum[g_deChSelStt];
+					else
+						g_arSetModSubNum[(g_deChSelStt-9)/4] = 255;
+					ConvertNum2AscDec(g_arSetModSubNum[0], g_arSetModSubAsc, 3);
+					ConvertNum2AscDec(g_arSetModSubNum[1], g_arSetModSubAsc+4, 3);
+					ConvertNum2AscDec(g_arSetModSubNum[2], g_arSetModSubAsc+8, 3);
+					ConvertNum2AscDec(g_arSetModSubNum[3], g_arSetModSubAsc+12, 3);
+					break;
+				case 4 :						// Selected ModGateway
+					if(g_arSetModGwNum[(g_deChSelStt-9)/4] < g_arSetAddrMax[g_deChSelStt])
+						g_arSetModGwNum[(g_deChSelStt-9)/4] += g_arSetAddrSum[g_deChSelStt];
+					else
+						g_arSetModGwNum[(g_deChSelStt-9)/4] = 255;
+					ConvertNum2AscDec(g_arSetModGwNum[0], g_arSetModGwAsc, 3);
+					ConvertNum2AscDec(g_arSetModGwNum[1], g_arSetModGwAsc+4, 3);
+					ConvertNum2AscDec(g_arSetModGwNum[2], g_arSetModGwAsc+8, 3);
+					ConvertNum2AscDec(g_arSetModGwNum[3], g_arSetModGwAsc+12, 3);
+					break;
+				case 5 :						// Selected ModPort
+					if(g_deSetModPortNum < g_arSetPortMax[g_deChSelStt])
+						g_deSetModPortNum += g_arSetPortSum[g_deChSelStt];
+					else
+						g_deSetModPortNum = 65535;
+					ConvertNum2AscDec(g_deSetModPortNum, g_arSetModPortAsc, 5);
+					break;
+				case 6 :						// Selected ModMac
+					if(g_arSetModMacNum[(g_deChSelStt-9)/3] > g_arSetMacMin[g_deChSelStt])
+						g_arSetModMacNum[(g_deChSelStt-9)/3] -= g_arSetMacSum[g_deChSelStt];
+					else
+						g_arSetModMacNum[(g_deChSelStt-9)/3] = 0;
+					ConvertNum2AscHex(g_arSetModMacNum[0], g_arSetModMacAsc, 2);
+					ConvertNum2AscHex(g_arSetModMacNum[1], g_arSetModMacAsc+3, 2);
+					ConvertNum2AscHex(g_arSetModMacNum[2], g_arSetModMacAsc+6, 2);
+					ConvertNum2AscHex(g_arSetModMacNum[3], g_arSetModMacAsc+9, 2);
+					ConvertNum2AscHex(g_arSetModMacNum[4], g_arSetModMacAsc+12, 2);
+					ConvertNum2AscHex(g_arSetModMacNum[5], g_arSetModMacAsc+15, 2);
+					break;
+				case 8 :						// Selected DestIp
+					if(g_arSetDestIpNum[(g_deChSelStt-9)/3] < g_arSetAddrMax[g_deChSelStt])
+						g_arSetDestIpNum[(g_deChSelStt-9)/3] += g_arSetAddrSum[g_deChSelStt];
+					else
+						g_arSetDestIpNum[(g_deChSelStt-9)/3] = 255;
+					ConvertNum2AscDec(g_arSetDestIpNum[0], g_arSetDestIpAsc, 3);
+					ConvertNum2AscDec(g_arSetDestIpNum[1], g_arSetDestIpAsc+4, 3);
+					ConvertNum2AscDec(g_arSetDestIpNum[2], g_arSetDestIpAsc+8, 3);
+					ConvertNum2AscDec(g_arSetDestIpNum[3], g_arSetDestIpAsc+12, 3);
+					break;
+				case 9 :						// Selected DestPort
+					if(g_deSetDestPortNum < g_arSetPortMax[g_deChSelStt])
+						g_deSetDestPortNum += g_arSetPortSum[g_deChSelStt];
+					else
+						g_deSetDestPortNum = 65535;
+					ConvertNum2AscDec(g_deSetDestPortNum, g_arSetDestPortAsc, 5);
+					break;
+				default :
+					break;
+			}
+		}
+
+		g_deSw2ShortFlg = 0;
+	}
+
+	if(g_deSw3ShortFlg == 1)		// Change to Details List Select Screen
+	{
+		if(g_deDetSelStt == 0)		// if Select 'SAVE' Details
+		{
+			// Save
+			memcpy(&CPU_I2C.ModIp, g_arSetModIpNum, 4);
+			memcpy(&CPU_I2C.ModSub, g_arSetModSubNum, 4);
+			memcpy(&CPU_I2C.ModGw, g_arSetModGwNum, 4);
+//			memcpy(&CPU_I2C.ModMac, g_arSetModMacNum, 6);
+			memcpy(&CPU_I2C.ModPort, &g_deSetModPortNum, 2);
+
+			memcpy(&ipaddr, &CPU_I2C.ModIp, 4);
+			memcpy(&netmask, &CPU_I2C.ModSub, 4);
+			memcpy(&gw, &CPU_I2C.ModGw, 4);
+			memcpy(&g_deEthModPort, &CPU_I2C.ModPort, 2);
+
+			I2C_WRITE();
+			ETH_INIT();
+			HAL_Delay(200);
+
+			g_deBkgdStt = SETTING_STATE;
+		}
+		else						// if Select Other Details
+		{
+			if(g_deChSelStt == 0)
+			{
+				g_deChSelStt = 9;
+			}
+			else if(g_deChSelStt < 25)
+			{
+				g_deChSelStt++;
+
+				if((g_deDetSelStt == 2) || (g_deDetSelStt == 3) || (g_deDetSelStt == 4) || (g_deDetSelStt == 9)) // if Address
+				{
+					if((g_deChSelStt == 12) || (g_deChSelStt == 16) || (g_deChSelStt == 20))
+						g_deChSelStt++;
+					if(g_deChSelStt == 24)
+						g_deChSelStt = 0;
+				}
+//				if(g_deDetSelStt == 5)	// if Mac
+//				{
+//					if((g_deChSelStt == 11) || (g_deChSelStt == 14) || (g_deChSelStt == 17) || (g_deChSelStt == 20) || (g_deChSelStt == 23))
+//						g_deChSelStt++;
+//				}
+				if((g_deDetSelStt == 5) || (g_deDetSelStt == 10))	// if Port
+				{
+					if(g_deChSelStt == 14)
+						g_deChSelStt = 0;
+				}
+			}
+			else
+			{
+				g_deChSelStt = 0;
+			}
+		}
+		g_deSw3ShortFlg = 0;
+	}
+	if(g_deSw4ShortFlg == 1)		// Change to Details List Select Screen
+	{
+		if(g_deChSelStt == 0)
+		{
+			g_deBkgdStt = SETTING_STATE;
+		}
+		else
+		{
+			g_deChSelStt = 0;
+		}
+
+		g_deSw4ShortFlg = 0;
+	}
+}
+void LCD_DetailsSoundStatus(void)
+{
+	if(g_deSw1ShortFlg == 1)		// Change to Lower Details List Selection
+	{
+		if(g_deChSelStt == 0)		// if Character is  Unselected,
+		{
+			if(g_deDetSelStt == 0)	// if Detail(Type, Volume) is Unselected,
+				g_deDetSelStt = 2;
+			else
+				g_deDetSelStt--;
+		}
+		else						// if Character is Selected
+		{
+			switch(g_deDetSelStt)
+			{
+				case 1 :						// Selected Date
+
+					break;
+				default :
+					break;
+			}
+		}
+		g_deSw1ShortFlg = 0;
+	}
+
+	if(g_deSw2ShortFlg == 1)		// Change to Upper Details List Selection
+	{
+		if(g_deChSelStt == 0)		// if Character is  Unselected,
+		{
+			if(g_deDetSelStt == 2)	// if Detail(Type, Volume) is Unselected,
+				g_deDetSelStt = 0;
+			else
+				g_deDetSelStt++;
+		}
+		else						// if Character is Selected
+		{
+			switch(g_deDetSelStt)
+			{
+				case 1 :						// Selected Date
+
+					break;
+				default :
+					break;
+			}
+		}
+		g_deSw2ShortFlg = 0;
+	}
+
+	if(g_deSw3ShortFlg == 1)		// Change to Details List Select Screen
+	{
+		if(g_deDetSelStt == 0)		// if Select 'SAVE' Details
+		{
+			// Save
+			g_deBkgdStt = SETTING_STATE;
+		}
+		else						// if Select Other Details
+		{
+			if(g_deChSelStt < 4)
+			{
+				g_deChSelStt++;
+			}
+			else
+			{
+				g_deChSelStt = 0;
+			}
+		}
+		g_deSw3ShortFlg = 0;
+	}
+	if(g_deSw4ShortFlg == 1)		// Change to Details List Select Screen
+	{
+		if(g_deChSelStt == 0)
+		{
+			g_deBkgdStt = SETTING_STATE;
+		}
+		else
+		{
+			g_deChSelStt = 0;
+		}
+		g_deSw4ShortFlg = 0;
+	}
+}
+void LCD_DetailsTimelogStatus(void)
+{
+	if(g_deSw1ShortFlg == 1)		// Change to Lower Details List Selection
+	{
+		if(g_deChSelStt == 0)		// if Character is  Unselected,
+		{
+			if(g_deDetSelStt == 0)	// if Detail(1~255) is Unselected,
+				g_deDetSelStt = 51;
+			else
+				g_deDetSelStt--;
+		}
+		else						// if Character is Selected
+		{
+			switch(g_deDetSelStt)
+			{
+				case 1 :						// Selected Date
+
+					break;
+				default :
+					break;
+			}
+		}
+		g_deSw1ShortFlg = 0;
+	}
+
+	if(g_deSw2ShortFlg == 1)		// Change to Upper Details List Selection
+	{
+		if(g_deChSelStt == 0)		// if Character is  Unselected,
+		{
+			if(g_deDetSelStt == 51)	// if Detail(1~255) is Unselected,
+				g_deDetSelStt = 0;
+			else
+				g_deDetSelStt++;
+		}
+		else						// if Character is Selected
+		{
+			switch(g_deDetSelStt)
+			{
+				case 1 :						// Selected Date
+
+					break;
+				default :
+					break;
+			}
+		}
+		g_deSw2ShortFlg = 0;
+	}
+
+	if(g_deSw3ShortFlg == 1)		// Change to Details List Select Screen
+	{
+		if(g_deDetSelStt == 0)		// if Select 'SAVE' Details
+		{
+			// Save
+			g_deBkgdStt = SETTING_STATE;
+		}
+		else						// if Select Other Details
+		{
+			if(g_deChSelStt < 4)
+			{
+				g_deChSelStt++;
+			}
+			else
+			{
+				g_deChSelStt = 0;
+			}
+		}
+		g_deSw3ShortFlg = 0;
+	}
+	if(g_deSw4ShortFlg == 1)		// Change to Details List Select Screen
+	{
+		if(g_deChSelStt == 0)
+		{
+			g_deBkgdStt = SETTING_STATE;
+		}
+		else
+		{
+			g_deChSelStt = 0;
+		}
+		g_deSw4ShortFlg = 0;
+	}
+}
+void LCD_DetailsWirelessStatus(void)
+{
+	if(g_deSw1ShortFlg == 1)		// Change to Lower Details List Selection
+	{
+		if(g_deChSelStt == 0)		// if Character is  Unselected,
+		{
+			if(g_deDetSelStt == 0)	// if Detail(NerworkName, Password, Timeout) is Unselected,
+				g_deDetSelStt = 3;
+			else
+				g_deDetSelStt--;
+		}
+		else						// if Character is Selected
+		{
+			switch(g_deDetSelStt)
+			{
+				case 1 :						// Selected Date
+
+					break;
+				default :
+					break;
+			}
+		}
+		g_deSw1ShortFlg = 0;
+	}
+
+	if(g_deSw2ShortFlg == 1)		// Change to Upper Details List Selection
+	{
+		if(g_deChSelStt == 0)		// if Character is  Unselected,
+		{
+			if(g_deDetSelStt == 3)	// if Detail(NerworkName, Password, Timeout) is Unselected,
+				g_deDetSelStt = 0;
+			else
+				g_deDetSelStt++;
+		}
+		else						// if Character is Selected
+		{
+			switch(g_deDetSelStt)
+			{
+				case 1 :						// Selected NerworkName
+
+					break;
+				default :
+					break;
+			}
+		}
+		g_deSw2ShortFlg = 0;
+	}
+
+	if(g_deSw3ShortFlg == 1)		// Change to Details List Select Screen
+	{
+		if(g_deDetSelStt == 0)		// if Select 'SAVE' Details
+		{
+			// Save
+			g_deBkgdStt = SETTING_STATE;
+		}
+		else						// if Select Other Details
+		{
+			if(g_deChSelStt < 4)
+			{
+				g_deChSelStt++;
+			}
+			else
+			{
+				g_deChSelStt = 0;
+			}
+		}
+		g_deSw3ShortFlg = 0;
+	}
+	if(g_deSw4ShortFlg == 1)		// Change to Details List Select Screen
+	{
+		if(g_deChSelStt == 0)
+		{
+			g_deBkgdStt = SETTING_STATE;
+		}
+		else
+		{
+			g_deChSelStt = 0;
+		}
+		g_deSw4ShortFlg = 0;
+	}
+}
